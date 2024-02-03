@@ -1,9 +1,47 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QLineEdit, QLabel
-from PyQt5.QtCore import pyqtSlot, pyqtSignal
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QMainWindow, QLabel
+from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal
 import bleak
 import qasync
 import asyncio
+
+class charWidget(QWidget):
+
+    def __init__(self, client, char):
+        super().__init__()
+        self.m_client = client
+        self.m_char = char
+        self.initUI()
+        self.valueList = []
+
+    def initUI(self):
+        self.notifButton = QPushButton("Enable Notifications")
+        self.notifButton.clicked.connect(self.enableNotif)
+
+        self.setWindowTitle("Bluetooth Device Scanner")
+        self.setGeometry(200, 200, 500, 500)
+
+        self.textfield = QLabel("")
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.notifButton)
+        layout.addWidget(self.textfield)
+        
+    @qasync.asyncSlot()
+    async def enableNotif(self):
+        self.notifButton.setEnabled(False)
+        try:
+            await self.m_client.start_notify(self.m_char, self.notifHandler)
+        except:
+            QMessageBox.information(self,"info","unable to start notification")
+
+    def notifHandler(self, char, value):
+        value = int(str(value[::-1].hex()),16)
+        text = self.textfield.text() + "\n" + str(value)
+        self.valueList.append(value)
+        self.textfield.setText(text)
+        
+
 
 class BluetoothWidget(QWidget):
 
@@ -139,6 +177,8 @@ class BluetoothWidget(QWidget):
                 self.connectButton.setEnabled(True)
 
                 self.serviceButton.setEnabled(True)
+
+                self.charList.doubleClicked.connect(self.charMonitor)
         else:
             QMessageBox.warning(self,"warning","Please select a valid option")
         
@@ -154,6 +194,13 @@ class BluetoothWidget(QWidget):
                 self.charDict[str(char)] = char
         else:
             QMessageBox.warning(self,"warning","Please select a valid option")
+
+    @qasync.asyncSlot()
+    async def charMonitor(self):
+        m_char = self.charDict[self.charList.currentItem().text()]
+        self.window = charWidget(self.m_client,m_char)
+        self.window.show()
+        
 
 
 def main():
