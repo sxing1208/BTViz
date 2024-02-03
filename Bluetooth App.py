@@ -1,45 +1,93 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QMainWindow, QLabel
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QPlainTextEdit, QLabel
 from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal
 import bleak
 import qasync
 import asyncio
+from collections import deque
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 class charWidget(QWidget):
 
     def __init__(self, client, char):
         super().__init__()
         self.m_client = client
-        self.m_char = char
-        self.initUI()
+        self.m_char = char  
+        
         self.valueList = []
+        self.valueQueue = deque(maxlen = 50)
+
+        self._animation = None 
+
+        self.isPlotting = False
+
+        self.initUI()
+
+
 
     def initUI(self):
         self.notifButton = QPushButton("Enable Notifications")
         self.notifButton.clicked.connect(self.enableNotif)
 
-        self.setWindowTitle("Bluetooth Device Scanner")
-        self.setGeometry(200, 200, 500, 500)
+        self.plotButton = QPushButton("Plot")
+        self.plotButton.clicked.connect(self._plot)
+        self.plotButton.setEnabled(False)
 
-        self.textfield = QLabel("")
+        self.setWindowTitle("Characterist Reader")
+        self.setGeometry(200, 200, 1000, 1000)
+
+        self.textfield = QPlainTextEdit()
+        self.textfield.setReadOnly(True)
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.notifButton)
+        layout.addWidget(self.plotButton)
         layout.addWidget(self.textfield)
+
+        self._fig, self._ax = plt.subplots()
+        self._line, = self._ax.plot(self.valueQueue)
+        self._ax.set_title('ADC')
+        self._ax.set_xlabel('Time (s)')
+        self._ax.set_ylabel('ADC (a. u.)')
+        self._canvas = FigureCanvas(self._fig)
+
+        layout.addWidget(self._canvas)
         
     @qasync.asyncSlot()
     async def enableNotif(self):
         self.notifButton.setEnabled(False)
         try:
             await self.m_client.start_notify(self.m_char, self.notifHandler)
+            self.plotButton.setEnabled(True)
         except:
             QMessageBox.information(self,"info","unable to start notification")
 
     def notifHandler(self, char, value):
         value = int(str(value[::-1].hex()),16)
-        text = self.textfield.text() + "\n" + str(value)
+        text = self.textfield.toPlainText() + "\n" + str(value)
         self.valueList.append(value)
-        self.textfield.setText(text)
+        self.textfield.setPlainText(text)
+        self.valueQueue.append(value)
+
+    def plotUpdate(self, frame):
+        if self.isPlotting:
+            # Update plot data
+            self._line.set_xdata(range(len(self.valueQueue)))
+            self._line.set_ydata(self.valueQueue)
+            self._ax.relim()
+            self._ax.autoscale_view()
+            
+            # Set line color
+            self._line.set_color('r')
+            return self._line,
+
+    def _plot(self):
+        self.plotButton.setEnabled(False)
+        self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=1, cache_frame_data=False)
+        self.isPlotting = True
+        self._canvas.draw_idle()
         
 
 
@@ -63,7 +111,7 @@ class BluetoothWidget(QWidget):
 
 
     def initUI(self):
-        self.setWindowTitle("Bluetooth Device Scanner")
+        self.setWindowTitle("Virtual BLE Central")
         self.setGeometry(50, 50, 700, 1000)
 
         layout = QVBoxLayout(self)
