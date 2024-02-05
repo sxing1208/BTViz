@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
-class charWidget(QWidget):
+class DisplayWidget(QWidget):
 
     def __init__(self, client, char):
         super().__init__()
@@ -25,8 +25,6 @@ class charWidget(QWidget):
 
         self.initUI()
 
-
-
     def initUI(self):
         self.notifButton = QPushButton("Enable Notifications")
         self.notifButton.clicked.connect(self.enableNotif)
@@ -35,7 +33,7 @@ class charWidget(QWidget):
         self.plotButton.clicked.connect(self._plot)
         self.plotButton.setEnabled(False)
 
-        self.setWindowTitle("Characterist Reader")
+        self.setWindowTitle("Characteristic Reader")
         self.setGeometry(200, 200, 1000, 1000)
 
         self.textfield = QPlainTextEdit()
@@ -88,10 +86,8 @@ class charWidget(QWidget):
         self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=1, cache_frame_data=False)
         self.isPlotting = True
         self._canvas.draw_idle()
-        
 
-
-class BluetoothWidget(QWidget):
+class ScanWidget(QWidget):
 
     def __init__(self):
         super().__init__()
@@ -111,7 +107,7 @@ class BluetoothWidget(QWidget):
 
 
     def initUI(self):
-        self.setWindowTitle("Virtual BLE Central")
+        self.setWindowTitle("Bluetooth scanner")
         self.setGeometry(50, 50, 700, 1000)
 
         layout = QVBoxLayout(self)
@@ -246,16 +242,14 @@ class BluetoothWidget(QWidget):
     @qasync.asyncSlot()
     async def charMonitor(self):
         m_char = self.charDict[self.charList.currentItem().text()]
-        self.window = charWidget(self.m_client,m_char)
+        self.window = DisplayWidget(self.m_client,m_char)
         self.window.show()
         
-
-
 def main():
     app = QApplication(sys.argv)
     event_loop = qasync.QEventLoop(app)
     asyncio.set_event_loop(event_loop)
-    ex = BluetoothWidget()
+    ex = ScanWidget()
     ex.show()
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
