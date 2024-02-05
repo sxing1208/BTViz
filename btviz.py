@@ -1,7 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QPlainTextEdit, QLabel, QComboBox
-from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal
-from PyQt5.QtGui import QScreen
+from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QCloseEvent
 import bleak
 import qasync
 import asyncio
@@ -45,6 +45,7 @@ class DisplayWidget(QWidget):
         :param char: The characteristic to monitor and display.
         """
         super().__init__()
+
         self.m_client = client
         self.m_char = char  
         
@@ -53,6 +54,11 @@ class DisplayWidget(QWidget):
 
         self._animation = None 
         self.isPlotting = False
+
+        self._timer = None
+
+        self.isNotif = False
+        self.isRead = False
 
         self.initUI()
 
@@ -69,22 +75,34 @@ class DisplayWidget(QWidget):
 
         # Dropdown for selecting data decoding method
         self.decodeMethodDropdown = QComboBox()
-        self.decodeMethodDropdown.setEnabled(False)
         for option in config['decodeOptions']:
             self.decodeMethodDropdown.addItem(option['name'])
+        self.decodeMethodDropdown.addItem("String Literal")
 
         self.setWindowTitle('Characteristic Reader')
-        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.4, scale_height=0.7)
+        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.5, scale_height=0.7)
         self.setGeometry(xPos, yPos, windowWidth, windowHeight)
 
         self.textfield = QPlainTextEdit()
         self.textfield.setReadOnly(True)
 
+        self.readButton = QPushButton("Enable Timed Read")
+        self.readButton.clicked.connect(self.enableTimedRead)
+
+        self.intervalDropdown = QComboBox()
+        self.intervalDropdown.addItem(".")
+        self.intervalDropdown.addItem("100")
+        self.intervalDropdown.addItem("200")
+        self.intervalDropdown.addItem("500")
+        self.intervalDropdown.addItem("1000")
+
         layout = QVBoxLayout(self)
         layout.addWidget(self.notifButton)
-        layout.addWidget(self.plotButton)
+        layout.addWidget(self.readButton)
         layout.addWidget(self.decodeMethodDropdown)
+        layout.addWidget(self.intervalDropdown)
         layout.addWidget(self.textfield)
+        layout.addWidget(self.plotButton)
 
         self._fig, self._ax = plt.subplots()
         self._line, = self._ax.plot(self.valueQueue)
@@ -101,31 +119,43 @@ class DisplayWidget(QWidget):
         Enables notifications for the BLE characteristic.
         """
         self.notifButton.setEnabled(False)
+        self.readButton.setEnabled(False)
+        self.decodeMethodDropdown.setEnabled(False)
+        self.intervalDropdown.setEnabled(False)
+
         try:
-            await self.m_client.start_notify(self.m_char, self.notifHandler)
+            await self.m_client.start_notify(self.m_char, self.decodeRoutine)
             self.plotButton.setEnabled(True)
             self.decodeMethodDropdown.setEnabled(True)
+            self.isNotif = True
         except:
             QMessageBox.information(self, 'Info', 'Unable to start notification')
 
-    def notifHandler(self, char, value):
+    def decodeRoutine(self, char, value):
         """
-        Handles notifications from the BLE characteristic.
+        Routine that Handles decoding of the BLE characteristic.
 
         :param char: The characteristic that sent the notification.
         :param value: The value of the notification.
         """
-        option = config['decodeOptions'][self.decodeMethodDropdown.currentIndex()]
-        format_str = option['format']
-        
-        if len(value) >= struct.calcsize(format_str):
-            decoded_value = struct.unpack(format_str, value)[0]
-            text = self.textfield.toPlainText() + '\n' + str(decoded_value)
-            self.textfield.setPlainText(text)
-            self.valueQueue.append(decoded_value)
-            self.valueList.append(decoded_value)
+        if(self.decodeMethodDropdown.currentText() != "String Literal"):
+            option = config['decodeOptions'][self.decodeMethodDropdown.currentIndex()]
+            format_str = option['format']
+            
+            if len(value) >= struct.calcsize(format_str):
+                decoded_value = struct.unpack(format_str, value)[0]
+                text = str(decoded_value) + '\n' + self.textfield.toPlainText() 
+                self.textfield.setPlainText(text)
+                self.valueQueue.append(decoded_value)
+                self.valueList.append(decoded_value)
+            else:
+                QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
+
         else:
-            QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
+            decoded_value = value.decode("UTF-8")
+            self.plotButton.setEnabled(False)
+            text = str(decoded_value) + '\n' + self.textfield.toPlainText() 
+            self.textfield.setPlainText(text)
 
     def plotUpdate(self, frame):
         """
@@ -152,6 +182,33 @@ class DisplayWidget(QWidget):
         self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=1, cache_frame_data=False)
         self.isPlotting = True
         self._canvas.draw_idle()
+
+    def enableTimedRead(self):
+        """
+        Enables Timed Read of a BLE characteristic
+        """
+        try:
+            self.interval = int(self.intervalDropdown.currentText())
+        except:
+            QMessageBox.warning(self,"error","select valid interval")
+            return
+        
+        self.readButton.setEnabled(False)
+        self.notifButton.setEnabled(False)
+        self.decodeMethodDropdown.setEnabled(False)
+        self.intervalDropdown.setEnabled(False)
+
+        #TODO -change timer settings
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self.timeoutHandler)
+        self._timer.start(self.interval)
+        self.isRead = True
+
+    @qasync.asyncSlot()
+    async def timeoutHandler(self):
+        value = await self.m_client.read_gatt_char(self.m_char)
+        self.decodeRoutine(self.m_char,value)
+
 
 class ScanWidget(QWidget):
     """
