@@ -1,6 +1,7 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QPlainTextEdit, QLabel, QComboBox
 from PyQt5.QtCore import Qt, pyqtSlot, pyqtSignal
+from PyQt5.QtGui import QScreen
 import bleak
 import qasync
 import asyncio
@@ -14,7 +15,22 @@ import json
 def load_config(file_path):
     with open(file_path, 'r') as file:
         return json.load(file)
-    
+
+def calculate_window(scale_width=0.5, scale_height=0.5):
+    """
+    Calculate window size and position based on screen size.
+
+    :param scale_width: Fraction of screen width to use for window width.
+    :param scale_height: Fraction of screen height to use for window height.
+    :return: A tuple containing (width, height, x_position, y_position)
+    """
+    screen = QApplication.primaryScreen().geometry()
+    screenWidth, screenHeight = screen.width(), screen.height()
+    windowWidth, windowHeight = int(screenWidth * scale_width), int(screenHeight * scale_height)
+    xPos, yPos = (screenWidth - windowWidth) // 2, (screenHeight - windowHeight) // 2  # center the window
+
+    return windowWidth, windowHeight, xPos, yPos
+
 config = load_config('config.json')
 
 class DisplayWidget(QWidget):
@@ -58,7 +74,8 @@ class DisplayWidget(QWidget):
             self.decodeMethodDropdown.addItem(option['name'])
 
         self.setWindowTitle('Characteristic Reader')
-        self.setGeometry(200, 200, 1000, 1000)
+        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.4, scale_height=0.7)
+        self.setGeometry(xPos, yPos, windowWidth, windowHeight)
 
         self.textfield = QPlainTextEdit()
         self.textfield.setReadOnly(True)
@@ -109,12 +126,6 @@ class DisplayWidget(QWidget):
             self.valueList.append(decoded_value)
         else:
             QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
-
-        # value = int(str(value[::-1].hex()), 16)
-        # text = self.textfield.toPlainText() + '\n' + str(value)
-        # self.valueList.append(value)
-        # self.textfield.setPlainText(text)
-        # self.valueQueue.append(value)
 
     def plotUpdate(self, frame):
         """
@@ -170,7 +181,8 @@ class ScanWidget(QWidget):
         Initializes the user interface for the scan widget.
         """
         self.setWindowTitle('BTViz')
-        self.setGeometry(50, 50, 700, 1000)
+        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.2, scale_height=0.7)
+        self.setGeometry(xPos, yPos, windowWidth, windowHeight)
 
         layout = QVBoxLayout(self)
 
