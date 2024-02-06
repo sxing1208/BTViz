@@ -1,7 +1,7 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QPlainTextEdit, QLabel, QComboBox
-from PyQt5.QtCore import QTimer
 from PyQt5.QtGui import QCloseEvent
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QListWidget, QMessageBox, QPlainTextEdit, QLabel, QComboBox, QTextEdit, QFormLayout
+from PyQt5.QtCore import QTimer, pyqtSignal
 import bleak
 import qasync
 import asyncio
@@ -33,6 +33,53 @@ def calculate_window(scale_width=0.5, scale_height=0.5):
 
 config = load_config('config.json')
 
+class PlotSettingsWidget(QWidget):
+    """
+    A widget for setting plot titles and axis
+    """
+    gotPlotSetting = pyqtSignal(str)
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle("Plot Settings")
+
+        self.titleText = QTextEdit()
+        self.titleText.setPlainText("Characteristic Value")
+
+        self.xAxisText = QTextEdit()
+        self.xAxisText.setPlainText("Time (a.u.)")
+
+        self.yAxisText = QTextEdit()
+        self.yAxisText.setPlainText("Value (a.u.)")
+
+        self.windowText = QTextEdit()
+        self.windowText.setPlainText("50")
+
+        self.saveButton = QPushButton("save settings")
+        self.saveButton.clicked.connect(self.onSave)
+
+        layout = QFormLayout(self)
+
+        layout.addWidget(QLabel("Title Text"))
+        layout.addWidget(self.titleText)
+        layout.addWidget(QLabel("x Axis Text"))
+        layout.addWidget(self.xAxisText)
+        layout.addWidget(QLabel("y Axis Text"))
+        layout.addWidget(self.yAxisText)
+        layout.addWidget(QLabel("Animation Window Length"))
+        layout.addWidget(self.windowText)
+        layout.addWidget(self.saveButton)
+
+    def onSave(self):
+        ret_str = self.titleText.toPlainText() + ',' + self.xAxisText.toPlainText() + ',' + self.yAxisText.toPlainText() + ','+ self.windowText.toPlainText()
+        self.gotPlotSetting.emit(ret_str)
+        self.close()
+
+
+
+
 class DisplayWidget(QWidget):
     """
     A widget for displaying BLE characteristic data and plotting it in real-time.
@@ -59,6 +106,10 @@ class DisplayWidget(QWidget):
 
         self.isNotif = False
         self.isRead = False
+
+        self._title = "ADC"
+        self._xlabel = "Time (a.u.)"
+        self._ylabel = "Value (a.u.)"
 
         self.initUI()
 
@@ -106,12 +157,41 @@ class DisplayWidget(QWidget):
 
         self._fig, self._ax = plt.subplots()
         self._line, = self._ax.plot(self.valueQueue)
-        self._ax.set_title('Temperature') # TODO: make the title and labels easy to change
-        self._ax.set_xlabel('Time') # TODO  
-        self._ax.set_ylabel('Value') # TODO
+        self._ax.set_title(self._title)
+        self._ax.set_xlabel(self._xlabel) 
+        self._ax.set_ylabel(self._ylabel)
         self._canvas = FigureCanvas(self._fig)
 
         layout.addWidget(self._canvas)
+
+        self.settingsButton = QPushButton("Plot Settings")
+        self.settingsButton.clicked.connect(self.onSettings)
+
+        layout.addWidget(self.settingsButton)
+
+    @qasync.asyncSlot()
+    async def onSettings(self):
+        """
+        Reveal plot settings window
+        """
+        self.window = PlotSettingsWidget()
+        self.window.gotPlotSetting.connect(self.onGotSettings)
+        self.window.show()
+
+    def onGotSettings(self,settings_str):
+        """
+        Update plot settings
+        """
+        str_list = settings_str.split(",")
+        self._title = str_list[0]
+        self._xlabel = str_list[1]
+        self._ylabel = str_list[2]
+        self.valueQueue = deque(maxlen = int(str_list[3]))
+        self._ax.set_title(self._title)
+        self._ax.set_xlabel(self._xlabel) 
+        self._ax.set_ylabel(self._ylabel)
+        
+
         
     @qasync.asyncSlot()
     async def enableNotif(self):
@@ -125,7 +205,8 @@ class DisplayWidget(QWidget):
 
         try:
             await self.m_client.start_notify(self.m_char, self.decodeRoutine)
-            self.plotButton.setEnabled(True)
+            if(self.decodeMethodDropdown.currentText() != "String Literal"):
+                self.plotButton.setEnabled(True)
             self.decodeMethodDropdown.setEnabled(True)
             self.isNotif = True
         except:
@@ -198,6 +279,9 @@ class DisplayWidget(QWidget):
         self.decodeMethodDropdown.setEnabled(False)
         self.intervalDropdown.setEnabled(False)
 
+        if(self.decodeMethodDropdown.currentText() != "String Literal"):
+            self.plotButton.setEnabled(True)
+
         #TODO -change timer settings
         self._timer = QTimer(self)
         self._timer.timeout.connect(self.timeoutHandler)
@@ -206,8 +290,22 @@ class DisplayWidget(QWidget):
 
     @qasync.asyncSlot()
     async def timeoutHandler(self):
+        """
+        Handles characteristic reading timer timeouts
+        """
         value = await self.m_client.read_gatt_char(self.m_char)
         self.decodeRoutine(self.m_char,value)
+    
+    @qasync.asyncClose
+    async def closeEvent(self, event):
+        """
+        Routine that terminates characteristic operations prior to window closure
+        """
+        if self.isNotif:
+            await self.m_client.stop_notify(self.m_char)
+        
+        if self.isRead:
+            self._timer.stop()
 
 
 class ScanWidget(QWidget):
