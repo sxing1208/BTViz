@@ -129,6 +129,7 @@ class DisplayWidget(QWidget):
         for option in config['decodeOptions']:
             self.decodeMethodDropdown.addItem(option['name'])
         self.decodeMethodDropdown.addItem("String Literal")
+        self.decodeMethodDropdown.addItem("Comma Delimited String Literal")
 
         self.setWindowTitle('Characteristic Reader')
         windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.5, scale_height=0.7)
@@ -207,7 +208,7 @@ class DisplayWidget(QWidget):
             await self.m_client.start_notify(self.m_char, self.decodeRoutine)
             if(self.decodeMethodDropdown.currentText() != "String Literal"):
                 self.plotButton.setEnabled(True)
-            self.decodeMethodDropdown.setEnabled(True)
+            self.decodeMethodDropdown.setEnabled(False)
             self.isNotif = True
         except:
             QMessageBox.information(self, 'Info', 'Unable to start notification')
@@ -219,7 +220,8 @@ class DisplayWidget(QWidget):
         :param char: The characteristic that sent the notification.
         :param value: The value of the notification.
         """
-        if(self.decodeMethodDropdown.currentText() != "String Literal"):
+        if(self.decodeMethodDropdown.currentText() != "String Literal" and 
+           self.decodeMethodDropdown.currentText() != "Comma Delimited String Literal"):
             option = config['decodeOptions'][self.decodeMethodDropdown.currentIndex()]
             format_str = option['format']
             
@@ -232,11 +234,15 @@ class DisplayWidget(QWidget):
             else:
                 QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
 
-        else:
+        elif(self.decodeMethodDropdown.currentText() == "String Literal"):
             decoded_value = value.decode("UTF-8")
             self.plotButton.setEnabled(False)
             text = str(decoded_value) + '\n' + self.textfield.toPlainText() 
             self.textfield.setPlainText(text)
+
+        else:
+            decoded_value = value.decode("UTF-8")
+
 
     def plotUpdate(self, frame):
         """
@@ -307,22 +313,13 @@ class DisplayWidget(QWidget):
         if self.isRead:
             self._timer.stop()
 
+class connectWidget(QWidget):
 
-class ScanWidget(QWidget):
-    """
-    A widget for scanning BLE devices and their services and characteristics.
-    """
-    def __init__(self):
-        """
-        Initializes the scan widget.
-        """
+    def __init__(self, device):
         super().__init__()
-        self.initUI()
+        
+        self.device = device
 
-        self.m_scanner = bleak.BleakScanner()
-        self.m_client = None
-
-        self.devicesDict = {}
         self.servicesDict = {}
         self.charDict = {}
 
@@ -331,90 +328,37 @@ class ScanWidget(QWidget):
         self.isServiceDiscovered = False
         self.isCharDiscovered = False
 
+        self.m_client = None
+
+        self.scanServices()
+
+        self.initUI()
+
     def initUI(self):
-        """
-        Initializes the user interface for the scan widget.
-        """
-        self.setWindowTitle('BTViz')
-        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.2, scale_height=0.7)
+        self.setWindowTitle("Device Connect")
+        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.5, scale_height=0.7)
         self.setGeometry(xPos, yPos, windowWidth, windowHeight)
-
-        layout = QVBoxLayout(self)
-
-        self.scanButton = QPushButton('Scan for Devices', self)
-        self.scanButton.clicked.connect(self.scanDevices)
-
-        self.connectButton = QPushButton('Connect to Device', self)
-        self.connectButton.clicked.connect(self.scanServices)
-        self.connectButton.setEnabled(False)
 
         self.serviceButton = QPushButton('Read Service', self)
         self.serviceButton.clicked.connect(self.scanChar)
         self.serviceButton.setEnabled(False)
 
-        self.devicesList = QListWidget(self)
+        self.connectButton = QPushButton('Disconnect', self)
+        self.connectButton.clicked.connect(self.disconnect)
+        self.connectButton.setEnabled(True)
 
         self.servicesList = QListWidget(self)
 
         self.charList = QListWidget(self)
 
-        layout.addWidget(self.scanButton)
-        layout.addWidget(QLabel('Device List'))
-        layout.addWidget(self.devicesList)
+        layout = QVBoxLayout(self)
+
         layout.addWidget(self.connectButton)
         layout.addWidget(QLabel('Service List'))
         layout.addWidget(self.servicesList)
         layout.addWidget(self.serviceButton)
         layout.addWidget(QLabel('Characteristic List'))
         layout.addWidget(self.charList)
-    
-    @qasync.asyncSlot()
-    async def scanDevices(self):
-        """
-        Scans for BLE devices and updates the UI with the results.
-        """
-        self.scanButton.setEnabled(False)
-        devices = await bleak.BleakScanner.discover()
-        for device in devices:
-            self.devicesList.addItem(device.name)
-            self.devicesDict[device.name] = device
-        
-        self.isDeviceDiscovered = True
-        self.scanButton.setText('Clear All')
-        self.scanButton.disconnect()
-        self.scanButton.clicked.connect(self.clearAll)
-
-        self.scanButton.setEnabled(True)
-        self.connectButton.setEnabled(True)
-
-    def clearAll(self):
-        """
-        Clears all discovered devices and resets the UI.
-        """
-        if(self.isConnected):
-            self.m_client.disconnect()
-        
-        self.devicesList.clear()
-        self.servicesList.clear()
-        self.charList.clear()
-
-        self.devicesDict = {}
-        self.servicesDict = {}
-        self.charDict = {}
-
-        self.scanButton.setText('Scan for Devices')
-        self.scanButton.disconnect()
-        self.scanButton.clicked.connect(self.scanDevices)
-
-        self.connectButton.setText('Connect to Sensor')
-        self.connectButton.disconnect()
-        self.connectButton.clicked.connect(self.scanServices)
-        self.connectButton.setEnabled(False)
-
-        self.serviceButton.setText('Read Service')
-        self.serviceButton.disconnect()
-        self.serviceButton.clicked.connect(self.scanChar)
-        self.serviceButton.setEnabled(False)
 
     @qasync.asyncSlot()
     async def disconnect(self):
@@ -424,21 +368,7 @@ class ScanWidget(QWidget):
         self.connectButton.setEnabled(False)
         if(self.m_client):
             await self.m_client.disconnect()
-            self.connectButton.setText('Connect to Sensor')
-            self.connectButton.disconnect()
-            self.connectButton.clicked.connect(self.scanServices)
-
-            self.servicesList.clear()
-            self.charList.clear()
-
-            self.servicesDict = {}
-            self.charDict = {}
-
-            self.connectButton.setEnabled(True)
-
-        else:
-            QMessageBox.warning(self,'Warning','No connected device, System Reset')
-            self.clearAll()
+        self.close()
 
     @qasync.asyncSlot()
     async def scanServices(self):
@@ -446,9 +376,13 @@ class ScanWidget(QWidget):
         Scans for services of the connected BLE device and updates the UI.
         """
         self.connectButton.setEnabled(False)
-        if(self.devicesList.currentItem()):
-            self.m_client = bleak.BleakClient(self.devicesDict[self.devicesList.currentItem().text()])
-            await self.m_client.connect()
+        if(self.device):
+            self.m_client = bleak.BleakClient(self.device)
+            try:
+                await self.m_client.connect()
+            except:
+                QMessageBox.warning(self,'warning','Unable to connect')
+                self.close()
             services = self.m_client.services
             for service in services:
                 self.servicesList.addItem(str(service))
@@ -462,7 +396,8 @@ class ScanWidget(QWidget):
 
                 self.charList.doubleClicked.connect(self.charMonitor)
         else:
-            QMessageBox.warning(self,'warning','Please select a valid option')
+            QMessageBox.warning(self,'warning','Unable to connect')
+            self.close()
         
     @qasync.asyncSlot()
     async def scanChar(self):
@@ -487,6 +422,99 @@ class ScanWidget(QWidget):
         m_char = self.charDict[self.charList.currentItem().text()]
         self.window = DisplayWidget(self.m_client,m_char)
         self.window.show()
+
+    @qasync.asyncClose
+    async def closeEvent(self, event):
+        if(self.m_client):
+            try:
+                await self.m_client.disconnect()
+            except:
+                pass
+            self.m_client = None
+
+class ScanWidget(QWidget):
+    """
+    A widget for scanning BLE devices.
+    """
+    def __init__(self):
+        """
+        Initializes the scan widget.
+        """
+        super().__init__()
+        self.initUI()
+
+        self.m_scanner = bleak.BleakScanner()
+        self.m_client = None
+
+        self.devicesDict = {}
+
+    def initUI(self):
+        """
+        Initializes the user interface for the scan widget.
+        """
+        self.setWindowTitle('BTViz')
+        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.2, scale_height=0.7)
+        self.setGeometry(xPos, yPos, windowWidth, windowHeight)
+
+        layout = QVBoxLayout(self)
+
+        self.scanButton = QPushButton('Scan for Devices', self)
+        self.scanButton.clicked.connect(self.scanDevices)
+
+        self.connectButton = QPushButton('Connect to Device', self)
+        self.connectButton.clicked.connect(self.scanServices)
+
+        self.devicesList = QListWidget(self)
+
+        layout.addWidget(self.scanButton)
+        layout.addWidget(QLabel('Device List'))
+        layout.addWidget(self.devicesList)
+        layout.addWidget(self.connectButton)
+    
+    @qasync.asyncSlot()
+    async def scanDevices(self):
+        """
+        Scans for BLE devices and updates the UI with the results.
+        """
+        self.scanButton.setEnabled(False)
+        devices = await bleak.BleakScanner.discover()
+        for device in devices:
+            self.devicesList.addItem(device.name)
+            self.devicesDict[device.name] = device
+        
+        self.isDeviceDiscovered = True
+        self.scanButton.setText('Clear All')
+        self.scanButton.disconnect()
+        self.scanButton.clicked.connect(self.clearAll)
+
+        self.scanButton.setEnabled(True)
+        self.connectButton.setEnabled(True)
+
+    def clearAll(self):
+        """
+        Clears all discovered devices and resets the UI.
+        """
+        
+        self.devicesList.clear()
+
+        self.devicesDict = {}
+
+        self.scanButton.setText('Scan for Devices')
+        self.scanButton.disconnect()
+        self.scanButton.clicked.connect(self.scanDevices)
+
+        self.connectButton.setEnabled(False)
+
+    def scanServices(self):
+        if(self.devicesList.currentItem().text()):
+            device = self.devicesDict[self.devicesList.currentItem().text()]
+            self.window = connectWidget(device)
+            self.window.show()
+        else:
+            QMessageBox.warning(self, 'Warning', 'Select Valid Device')
+        
+
+
         
 def main():
     """
