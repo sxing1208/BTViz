@@ -1,7 +1,0 @@
-{
-    "decodeOptions": [
-        {"name": "4 Byte Unsigned Int (uint32_t)", "format": "<I"},
-        {"name": "4 Byte Signed Int (int32_t)", "format": "<i"},
-        {"name": "4 Byte Float (float)", "format": "<f"}
-    ]
-}
