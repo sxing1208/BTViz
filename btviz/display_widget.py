@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox, QInputDialog
 from PyQt5.QtCore import QTimer
 import qasync
 import struct
@@ -9,7 +9,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from .utils import calculate_window
 from .plot_settings_widget import PlotSettingsWidget
 from .config_loader import load_config
-import numpy as np
+import datetime
+import os
 
 
 class DisplayWidget(QWidget):
@@ -100,6 +101,9 @@ class DisplayWidget(QWidget):
         self.intervalDropdown.addItem("500")
         self.intervalDropdown.addItem("1000")
 
+        self.saveButton = QPushButton("Save Data")
+        self.saveButton.clicked.connect(self.saveData)
+        self.saveButton.setEnabled(False)
 
         self._layout = QVBoxLayout(self)
         self._layout.addWidget(self.notifButton)
@@ -113,6 +117,7 @@ class DisplayWidget(QWidget):
         self.settingsButton.clicked.connect(self.onSettings)
 
         self._layout.addWidget(self.settingsButton)
+        self._layout.addWidget(self.saveButton)
 
     @qasync.asyncSlot()
     async def onSettings(self):
@@ -190,6 +195,7 @@ class DisplayWidget(QWidget):
                 self._axs = [self._ax]
                 self.isFirstTransactions = False
                 self.plotButton.setEnabled(True)
+                self.saveButton.setEnabled(True)
 
         elif self.decodeMethodDropdown.currentText() == "String Literal":
             decoded_value = value.decode("UTF-8")
@@ -230,6 +236,7 @@ class DisplayWidget(QWidget):
 
                 self._canvas = FigureCanvas(self._fig)
                 self.plotButton.setEnabled(True)
+                self.saveButton.setEnabled(True)
 
             for i in range(len(decoded_list)):
                 try:
@@ -305,6 +312,19 @@ class DisplayWidget(QWidget):
         """
         value = await self.m_client.read_gatt_char(self.m_char)
         self.decodeRoutine(self.m_char, value)
+
+    def saveData(self):
+        text, ok = QInputDialog.getText(self, 'Save Data', 'Filename')
+        if ok:
+            date_str = str(datetime.datetime.now())[:10]
+            file_folder_str = './output/'+date_str
+            filename = './output/'+date_str+'/'+text
+            if not os.path.exists("./output"):
+                os.makedirs("./output")
+            if not os.path.exists(file_folder_str):
+                os.makedirs(file_folder_str)
+            with open(filename, 'w') as f:
+                f.writelines(self.textfield.toPlainText())
 
     @qasync.asyncClose
     async def closeEvent(self, event):
