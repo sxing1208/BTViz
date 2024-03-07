@@ -1,3 +1,4 @@
+# display_widget.py
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox
 from PyQt5.QtCore import QTimer
 import qasync

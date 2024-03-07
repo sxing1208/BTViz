@@ -1,3 +1,4 @@
+# scan_widget.py
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLabel, QMessageBox
 import qasync
 import bleak

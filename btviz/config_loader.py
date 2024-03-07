@@ -1,3 +1,4 @@
+# config_loader.py
 import json
 from .btviz_exceptions import *
 
@@ -8,4 +9,3 @@ def load_config(file_path):
             return json.load(f)
     except (FileNotFoundError, json.decoder.JSONDecodeError) as e:
         raise ConfigurationError(f"Error loading or parsing config file {file_path}: {e}")
-    

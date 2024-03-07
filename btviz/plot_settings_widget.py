@@ -1,3 +1,4 @@
+# plot_settings_widget.py
 from PyQt5.QtWidgets import QWidget, QPushButton, QTextEdit, QLabel, QFormLayout
 from PyQt5.QtCore import pyqtSignal
 

@@ -1,3 +1,4 @@
+# main.py
 import sys
 import asyncio
 from PyQt5.QtWidgets import QApplication
