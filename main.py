@@ -3,6 +3,7 @@ import asyncio
 from PyQt5.QtWidgets import QApplication
 import qasync
 from btviz.scan_widget import ScanWidget
+from btviz.error_handler import show_error_message
 
 
 def main():
@@ -12,8 +13,11 @@ def main():
     app = QApplication(sys.argv)
     event_loop = qasync.QEventLoop(app)
     asyncio.set_event_loop(event_loop)
-    ex = ScanWidget()
-    ex.show()
+    try:
+        ex = ScanWidget()
+        ex.show()
+    except Exception as e:
+        show_error_message(e)
     app_close_event = asyncio.Event()
     app.aboutToQuit.connect(app_close_event.set)
     with event_loop:

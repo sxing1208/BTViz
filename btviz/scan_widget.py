@@ -3,6 +3,7 @@ import qasync
 import bleak
 from .connect_widget import ConnectWidget
 from .utils import calculate_window
+from .btviz_exceptions import *
 
 
 class ScanWidget(QWidget):
@@ -60,6 +61,9 @@ class ScanWidget(QWidget):
         """
         self.scanButton.setEnabled(False)
         devices = await bleak.BleakScanner.discover()
+        if not devices:
+            raise DeviceNotFoundError("No BLE devices found during scanning.")
+
         for device in devices:
             self.devicesList.addItem(device.name)
             self.devicesDict[device.name] = device
@@ -71,6 +75,14 @@ class ScanWidget(QWidget):
 
         self.scanButton.setEnabled(True)
         self.connectButton.setEnabled(True)
+
+    def scanServices(self):
+        if self.devicesList.currentItem().text():
+            device = self.devicesDict[self.devicesList.currentItem().text()]
+            self.scanServicesWindow = ConnectWidget(device)
+            self.scanServicesWindow.show()
+        else:
+            QMessageBox.warning(self, 'Warning', 'Select Valid Device')
 
     def clearAll(self):
         """
@@ -86,11 +98,3 @@ class ScanWidget(QWidget):
         self.scanButton.clicked.connect(self.scanDevices)
 
         self.connectButton.setEnabled(False)
-
-    def scanServices(self):
-        if self.devicesList.currentItem().text():
-            device = self.devicesDict[self.devicesList.currentItem().text()]
-            self.scanServicesWindow = ConnectWidget(device)
-            self.scanServicesWindow.show()
-        else:
-            QMessageBox.warning(self, 'Warning', 'Select Valid Device')

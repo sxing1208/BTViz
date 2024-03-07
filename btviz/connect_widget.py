@@ -3,6 +3,7 @@ import qasync
 import bleak
 from .display_widget import DisplayWidget
 from .utils import calculate_window
+from .btviz_exceptions import *
 
 
 class ConnectWidget(QWidget):
@@ -77,9 +78,10 @@ class ConnectWidget(QWidget):
             self.m_client = bleak.BleakClient(self.device)
             try:
                 await self.m_client.connect()
-            except:
-                QMessageBox.warning(self, 'warning', 'Unable to connect')
-                self.close()
+            except Exception as e:
+                raise DeviceConnectionError(f"Failed to connect to the BLE device: {str(e)}")
+                # QMessageBox.warning(self, 'warning', 'Unable to connect')
+                # self.close()
             services = self.m_client.services
             for service in services:
                 self.servicesList.addItem(str(service))
@@ -105,11 +107,13 @@ class ConnectWidget(QWidget):
         if self.servicesList.currentItem():
             service = self.servicesDict[self.servicesList.currentItem().text()]
             chars = service.characteristics
+            if not chars:
+                raise CharacteristicNotFoundError("No characteristics found for the selected service.")
             for char in chars:
                 self.charList.addItem(str(char))
                 self.charDict[str(char)] = char
         else:
-            QMessageBox.warning(self,'warning','Please select a valid option')
+            QMessageBox.warning(self, 'warning', 'Please select a valid option')
 
     @qasync.asyncSlot()
     async def charMonitor(self):

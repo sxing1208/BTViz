@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from .utils import calculate_window
 from .plot_settings_widget import PlotSettingsWidget
 from .config_loader import load_config
-import numpy as np
+from .btviz_exceptions import *
 
 
 class DisplayWidget(QWidget):
@@ -100,7 +100,6 @@ class DisplayWidget(QWidget):
         self.intervalDropdown.addItem("500")
         self.intervalDropdown.addItem("1000")
 
-
         self._layout = QVBoxLayout(self)
         self._layout.addWidget(self.notifButton)
         self._layout.addWidget(self.readButton)
@@ -152,8 +151,9 @@ class DisplayWidget(QWidget):
             await self.m_client.start_notify(self.m_char, self.decodeRoutine)
             self.decodeMethodDropdown.setEnabled(False)
             self.isNotif = True
-        except:
-            QMessageBox.information(self, 'Info', 'Unable to start notification')
+        except Exception as e:
+            raise NotificationError(f"Unable to start notification {str(e)}")
+            # QMessageBox.information(self, 'Info', 'Unable to start notification')
 
     def decodeRoutine(self, char, value):
         """
@@ -168,13 +168,16 @@ class DisplayWidget(QWidget):
             format_str = option['format']
 
             if len(value) >= struct.calcsize(format_str):
-                decoded_value = struct.unpack(format_str, value)[0]
+                try:
+                    decoded_value = struct.unpack(format_str, value)[0]
+                except struct.error as e:
+                    raise DataDecodingError(f"Error decoding data: {str(e)}")
                 text = str(decoded_value) + '\n' + self.textfield.toPlainText()
                 self.textfield.setPlainText(text)
                 self.dataframe[0].append(decoded_value)
             else:
                 QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
-            if(self.isFirstTransactions):
+            if self.isFirstTransactions:
                 self._fig, self._ax = plt.subplots()
                 self._line, = self._ax.plot(self.dataframe[0])
                 self._title = "ADC"
