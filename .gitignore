@@ -141,3 +141,7 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/windows,pycharm
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
