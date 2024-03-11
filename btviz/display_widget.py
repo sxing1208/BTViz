@@ -37,6 +37,7 @@ class DisplayWidget(QWidget):
         self.isNotif = False
         self.isRead = False
         self.isFirstTransactions = True
+        self.isFirstPlot = True
 
         self.figList = []
         self.axList = []
@@ -180,19 +181,6 @@ class DisplayWidget(QWidget):
             else:
                 QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
             if(self.isFirstTransactions):
-                self._fig, self._ax = plt.subplots()
-                self._line, = self._ax.plot(self.dataframe[0])
-                self._title = "ADC"
-                self._xlabel = "Time (a.u.)"
-                self._ylabel = "Value (a.u.)"
-                self._canvas = FigureCanvas(self._fig)
-
-                self._ax.set_title(self._title)
-                self._ax.set_xlabel(self._xlabel)
-                self._ax.set_ylabel(self._ylabel)
-
-                self._lines = [self._line]
-                self._axs = [self._ax]
                 self.isFirstTransactions = False
                 self.plotButton.setEnabled(True)
                 self.saveButton.setEnabled(True)
@@ -218,29 +206,14 @@ class DisplayWidget(QWidget):
                 self._lines = []
                 for i in range(len(decoded_list)):
                     self.dataframe.append(deque(maxlen= 100))
-
+                
                 self.isFirstTransactions = False
-
-                self._fig, self._axs = plt.subplots(len(self.dataframe),1)
-                for i in range(len(self._axs)):
-                    _ax = self._axs[i]
-                    line, = _ax.plot(self.dataframe[i])
-                    self._lines.append(line)
-                    self._title = "ADC"
-                    self._xlabel = "Time (a.u.)"
-                    self._ylabel = "Value (a.u.)"
-
-                    _ax.set_title(self._title)
-                    _ax.set_xlabel(self._xlabel)
-                    _ax.set_ylabel(self._ylabel)
-
-                self._canvas = FigureCanvas(self._fig)
                 self.plotButton.setEnabled(True)
                 self.saveButton.setEnabled(True)
 
             for i in range(len(decoded_list)):
                 try:
-                    item = float(decoded_list[i])
+                    item = float(decoded_list[i].replace('\x00',''))
                 except:
                     QMessageBox.warning(self,"Warning","Unable to decode")
                 self.dataframe[i].append(item)
@@ -253,6 +226,7 @@ class DisplayWidget(QWidget):
 
         :param frame: The current frame of the animation (unused).
         """
+        
         if self.isPlotting:
             for i in range(len(self.dataframe)):
                 # Update plot data
@@ -273,6 +247,39 @@ class DisplayWidget(QWidget):
         """
         Starts plotting the BLE characteristic data in real-time.
         """
+        if self.isFirstPlot:
+            if self.decodeMethodDropdown.currentText() != "Comma Delimited String Literal":
+                self._fig, self._ax = plt.subplots()
+                self._line, = self._ax.plot(self.dataframe[0])
+                self._title = "ADC"
+                self._xlabel = "Time (a.u.)"
+                self._ylabel = "Value (a.u.)"
+                self._canvas = FigureCanvas(self._fig)
+
+                self._ax.set_title(self._title)
+                self._ax.set_xlabel(self._xlabel)
+                self._ax.set_ylabel(self._ylabel)
+
+                self._lines = [self._line]
+                self._axs = [self._ax]
+                self.isFirstPlot = False
+            else:
+
+                self._fig, self._axs = plt.subplots(len(self.dataframe),1)
+                for i in range(len(self._axs)):
+                    _ax = self._axs[i]
+                    line, = _ax.plot(self.dataframe[i])
+                    self._lines.append(line)
+                    self._title = "ADC"
+                    self._xlabel = "Time (a.u.)"
+                    self._ylabel = "Value (a.u.)"
+
+                    _ax.set_title(self._title)
+                    _ax.set_xlabel(self._xlabel)
+                    _ax.set_ylabel(self._ylabel)
+
+                self._canvas = FigureCanvas(self._fig)
+
         self.plotButton.setEnabled(False)
         self._layout.addWidget(self._canvas)
 
