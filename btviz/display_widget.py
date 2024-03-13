@@ -32,16 +32,13 @@ class DisplayWidget(QWidget):
         self.m_client = client
         self.m_char = char
 
-        self.dataframe = [deque(maxlen= 100)]
+        self.valueList = []
+        self.valueQueue = deque(maxlen=50)
 
         self.isNotif = False
         self.isRead = False
-        self.isFirstTransactions = True
 
-        self.figList = []
-        self.axList = []
-        self.lineList = []
-
+        self._fig, self._ax = plt.subplots()
         self._line = None
         self._title = None
         self._xlabel = None
@@ -101,18 +98,30 @@ class DisplayWidget(QWidget):
         self.intervalDropdown.addItem("500")
         self.intervalDropdown.addItem("1000")
 
-        self._layout = QVBoxLayout(self)
-        self._layout.addWidget(self.notifButton)
-        self._layout.addWidget(self.readButton)
-        self._layout.addWidget(self.decodeMethodDropdown)
-        self._layout.addWidget(self.intervalDropdown)
-        self._layout.addWidget(self.textfield)
-        self._layout.addWidget(self.plotButton)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.notifButton)
+        layout.addWidget(self.readButton)
+        layout.addWidget(self.decodeMethodDropdown)
+        layout.addWidget(self.intervalDropdown)
+        layout.addWidget(self.textfield)
+        layout.addWidget(self.plotButton)
+
+        self._line, = self._ax.plot(self.valueQueue)
+        self._title = "ADC"
+        self._xlabel = "Time (a.u.)"
+        self._ylabel = "Value (a.u.)"
+        self._canvas = FigureCanvas(self._fig)
+
+        self._ax.set_title(self._title)
+        self._ax.set_xlabel(self._xlabel)
+        self._ax.set_ylabel(self._ylabel)
+
+        layout.addWidget(self._canvas)
 
         self.settingsButton = QPushButton("Plot Settings")
         self.settingsButton.clicked.connect(self.onSettings)
 
-        self._layout.addWidget(self.settingsButton)
+        layout.addWidget(self.settingsButton)
 
     @qasync.asyncSlot()
     async def onSettings(self):
@@ -131,12 +140,10 @@ class DisplayWidget(QWidget):
         self._title = str_list[0]
         self._xlabel = str_list[1]
         self._ylabel = str_list[2]
-        for valueQueue in self.dataframe:
-            valueQueue = deque(maxlen=int(str_list[3]))
-        for ax in self._axs:
-            ax.set_title(self._title)
-            ax.set_xlabel(self._xlabel)
-            ax.set_ylabel(self._ylabel)
+        self.valueQueue = deque(maxlen=int(str_list[3]))
+        self._ax.set_title(self._title)
+        self._ax.set_xlabel(self._xlabel)
+        self._ax.set_ylabel(self._ylabel)
 
     @qasync.asyncSlot()
     async def enableNotif(self):
@@ -150,6 +157,8 @@ class DisplayWidget(QWidget):
 
         try:
             await self.m_client.start_notify(self.m_char, self.decodeRoutine)
+            if self.decodeMethodDropdown.currentText() != "String Literal":
+                self.plotButton.setEnabled(True)
             self.decodeMethodDropdown.setEnabled(False)
             self.isNotif = True
         except Exception as e:
@@ -175,25 +184,10 @@ class DisplayWidget(QWidget):
                     raise DataDecodingError(f"Error decoding data: {str(e)}")
                 text = str(decoded_value) + '\n' + self.textfield.toPlainText()
                 self.textfield.setPlainText(text)
-                self.dataframe[0].append(decoded_value)
+                self.valueQueue.append(decoded_value)
+                self.valueList.append(decoded_value)
             else:
                 QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
-            if self.isFirstTransactions:
-                self._fig, self._ax = plt.subplots()
-                self._line, = self._ax.plot(self.dataframe[0])
-                self._title = "ADC"
-                self._xlabel = "Time (a.u.)"
-                self._ylabel = "Value (a.u.)"
-                self._canvas = FigureCanvas(self._fig)
-
-                self._ax.set_title(self._title)
-                self._ax.set_xlabel(self._xlabel)
-                self._ax.set_ylabel(self._ylabel)
-
-                self._lines = [self._line]
-                self._axs = [self._ax]
-                self.isFirstTransactions = False
-                self.plotButton.setEnabled(True)
 
         elif self.decodeMethodDropdown.currentText() == "String Literal":
             decoded_value = value.decode("UTF-8")
@@ -202,47 +196,7 @@ class DisplayWidget(QWidget):
             self.textfield.setPlainText(text)
 
         else:
-            try:
-                decoded_value = value.decode("UTF-8")
-                decoded_list = decoded_value.split(",")
-            except:
-                QMessageBox.warning(self,"Warning","Unable to decode")
-                self.close()
-            
-            text = str(decoded_value) + '\n' + self.textfield.toPlainText()
-            self.textfield.setPlainText(text)
-            if(self.isFirstTransactions):
-                self.dataframe = []
-                self._lines = []
-                for i in range(len(decoded_list)):
-                    self.dataframe.append(deque(maxlen= 100))
-
-                self.isFirstTransactions = False
-
-                self._fig, self._axs = plt.subplots(len(self.dataframe),1)
-                for i in range(len(self._axs)):
-                    _ax = self._axs[i]
-                    line, = _ax.plot(self.dataframe[i])
-                    self._lines.append(line)
-                    self._title = "ADC"
-                    self._xlabel = "Time (a.u.)"
-                    self._ylabel = "Value (a.u.)"
-
-                    _ax.set_title(self._title)
-                    _ax.set_xlabel(self._xlabel)
-                    _ax.set_ylabel(self._ylabel)
-
-                self._canvas = FigureCanvas(self._fig)
-                self.plotButton.setEnabled(True)
-
-            for i in range(len(decoded_list)):
-                try:
-                    item = float(decoded_list[i])
-                except:
-                    QMessageBox.warning(self,"Warning","Unable to decode")
-                self.dataframe[i].append(item)
-
-                    
+            decoded_value = value.decode("UTF-8")
 
     def plotUpdate(self, frame):
         """
@@ -251,30 +205,22 @@ class DisplayWidget(QWidget):
         :param frame: The current frame of the animation (unused).
         """
         if self.isPlotting:
-            for i in range(len(self.dataframe)):
-                # Update plot data
-                self._lines[i].set_xdata(range(len(self.dataframe[i])))  # Set x-data as the index of the data points
-                self._lines[i].set_ydata(self.dataframe[i])  # Set y-data as the actual data values
+            # Update plot data
+            self._line.set_xdata(range(len(self.valueQueue)))  # TODO: this should be related to real-time
+            self._line.set_ydata(self.valueQueue)
+            self._ax.relim()
+            self._ax.autoscale_view()
 
-                # Adjust plot limits and scaling
-                self._axs[i].relim()
-                self._axs[i].autoscale_view()
-
-                # Set line color (optional)
-                self._lines[i].set_color('r')
-
-            # Return all line objects for animation update
-            return [line for line in self.lineList]
+            # Set line color
+            self._line.set_color('r')
+            return self._line,
 
     def _plot(self):
         """
         Starts plotting the BLE characteristic data in real-time.
         """
         self.plotButton.setEnabled(False)
-        self._layout.addWidget(self._canvas)
-
         self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=1, cache_frame_data=False)
-        
         self.isPlotting = True
         self._canvas.draw_idle()
 
