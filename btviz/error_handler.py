@@ -1,4 +1,6 @@
 # error_handler.py
+# import logging
+
 from PyQt5.QtWidgets import QMessageBox
 from .btviz_exceptions import *
 
