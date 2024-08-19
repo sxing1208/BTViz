@@ -194,7 +194,7 @@ class DisplayWidget(QWidget):
         else:
             try:
                 decoded_value = value.decode("UTF-8")
-                decoded_list = decoded_value.split(",")
+                decoded_list = decoded_value[:-1].split(",")
             except:
                 QMessageBox.warning(self,"Warning","Unable to decode")
                 self.close()
@@ -273,11 +273,12 @@ class DisplayWidget(QWidget):
                     self._title = "ADC"
                     self._xlabel = "Time (a.u.)"
                     self._ylabel = "Value (a.u.)"
+                    
+                    _ax.tick_params(labelleft=False)
 
-                    _ax.set_title(self._title)
-                    _ax.set_xlabel(self._xlabel)
-                    _ax.set_ylabel(self._ylabel)
-
+                self._axs[0].set_title(self._title)
+                self._axs[-1].set_xlabel(self._xlabel)
+                self._axs[int(len(self._axs)/2)].set_ylabel(self._ylabel)
                 self._canvas = FigureCanvas(self._fig)
 
         self.plotButton.setEnabled(False)
