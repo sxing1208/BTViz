@@ -158,8 +158,8 @@ class DisplayWidget(QWidget):
             await self.m_client.start_notify(self.m_char, self.decodeRoutine)
             self.decodeMethodDropdown.setEnabled(False)
             self.isNotif = True
-        except:
-            QMessageBox.information(self, 'Info', 'Unable to start notification')
+        except Exception as e:
+            QMessageBox.information(self, 'Info', f'Unable to start notification: {e}')
 
     def decodeRoutine(self, char, value):
         """
