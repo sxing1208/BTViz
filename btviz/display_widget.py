@@ -10,7 +10,10 @@ from .utils import calculate_window
 from .plot_settings_widget import PlotSettingsWidget
 from .config_loader import load_config
 import datetime
+import datetime
 import os
+from PyQt5.QtCore import QThread
+from .save_thread import SaveThread
 
 
 class DisplayWidget(QWidget):
@@ -18,6 +21,7 @@ class DisplayWidget(QWidget):
     A widget for displaying BLE characteristic data and plotting it in real-time.
     """
 
+    
     def __init__(self, client, char):
         """
         Initializes the display widget.
@@ -28,6 +32,7 @@ class DisplayWidget(QWidget):
         super().__init__()
 
         self.config = None
+        self.thread = None
 
         self.m_client = client
         self.m_char = char
@@ -103,7 +108,7 @@ class DisplayWidget(QWidget):
         self.intervalDropdown.addItem("1000")
 
         self.saveButton = QPushButton("Save Data")
-        self.saveButton.clicked.connect(self.saveData)
+        self.saveButton.clicked.connect(self.startSaveData)
         self.saveButton.setEnabled(False)
 
         self._layout = QVBoxLayout(self)
@@ -321,18 +326,34 @@ class DisplayWidget(QWidget):
         value = await self.m_client.read_gatt_char(self.m_char)
         self.decodeRoutine(self.m_char, value)
 
-    def saveData(self):
+    def startSaveData(self):
+        # 1. Get Filename (UI operation - Main Thread)
         text, ok = QInputDialog.getText(self, 'Save Data', 'Filename')
-        if ok:
-            date_str = str(datetime.datetime.now())[:10]
-            file_folder_str = './output/'+date_str
-            filename = './output/'+date_str+'/'+text
-            if not os.path.exists("./output"):
-                os.makedirs("./output")
-            if not os.path.exists(file_folder_str):
-                os.makedirs(file_folder_str)
-            with open(filename, 'w') as f:
-                f.writelines(self.textfield.toPlainText())
+        if not ok or not text:
+            return
+
+        # 2. Get Content (UI access - Main Thread)
+        content = self.textfield.toPlainText()
+
+        # 3. Setup Thread
+        self.thread = QThread()
+        self.saver = SaveThread(text, content)
+        self.saver.moveToThread(self.thread)
+
+        # 4. Connect Signals
+        self.thread.started.connect(self.saver.saveData)
+        self.saver.finished.connect(self.thread.quit)
+        self.saver.finished.connect(self.saver.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.thread.finished.connect(lambda: self.saveButton.setEnabled(True))
+        self.thread.finished.connect(lambda: self.saveButton.setText("Save Data"))
+        
+        # 5. Start
+        self.saveButton.setEnabled(False)
+        self.saveButton.setText("Saving...")
+        self.thread.start()
+
+    # Removed updateProgress as it requires a progress bar that doesn't exist yet
 
     @qasync.asyncClose
     async def closeEvent(self, event):
