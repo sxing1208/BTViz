@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox, QInputDialog
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox, QInputDialog, QLabel
 from PyQt5.QtCore import QTimer
 import qasync
 import struct
@@ -65,9 +65,21 @@ class DisplayWidget(QWidget):
         self.textfield = None
         self.readButton = None
         self.intervalDropdown = None
+        self.plotResampleDropdown = None
         self.settingsButton = None
 
         self.isSaving = False
+
+        self.resamplecounter = 0
+        self.resampleratio = 1
+
+        self.resampleratiodict = {
+            '1:1':1,
+            '5:1':5,
+            '10:1':10,
+            '20:1':20,
+            '50:1':50,
+        }
         
         self.window = None
 
@@ -111,15 +123,32 @@ class DisplayWidget(QWidget):
         self.intervalDropdown.addItem("500")
         self.intervalDropdown.addItem("1000")
 
+        self.plotResampleDropdown = QComboBox()
+        self.plotResampleDropdown.addItem('1:1')
+        self.plotResampleDropdown.addItem('5:1')
+        self.plotResampleDropdown.addItem('10:1')
+        self.plotResampleDropdown.addItem('20:1')
+        self.plotResampleDropdown.addItem('50:1')
+
         self.saveButton = QPushButton("Save Data")
         self.saveButton.clicked.connect(self.startSaveData)
         self.saveButton.setEnabled(False)
 
+        self.decodeLabel = QLabel("Decode method")
+        self.readIntervalLabel = QLabel("Read interval (ms)")
+        self.plotResampleLabel = QLabel("Plot resample ratio")
+
         self._layout = QVBoxLayout(self)
         self._layout.addWidget(self.notifButton)
         self._layout.addWidget(self.readButton)
+        self._layout.addWidget(self.decodeLabel)
         self._layout.addWidget(self.decodeMethodDropdown)
+
+        self._layout.addWidget(self.readIntervalLabel)
         self._layout.addWidget(self.intervalDropdown)
+
+        self._layout.addWidget(self.plotResampleLabel)
+        self._layout.addWidget(self.plotResampleDropdown)
         self._layout.addWidget(self.textfield)
         self._layout.addWidget(self.plotButton)
 
@@ -177,6 +206,8 @@ class DisplayWidget(QWidget):
         :param char: The characteristic that sent the notification.
         :param value: The value of the notification.
         """
+        decoded_value = None
+        self.resamplecounter += 1
         if (self.decodeMethodDropdown.currentText() != "String Literal" and
                 self.decodeMethodDropdown.currentText() != "Comma Delimited String Literal"):
             option = self.config['decodeOptions'][self.decodeMethodDropdown.currentIndex()]
@@ -184,9 +215,9 @@ class DisplayWidget(QWidget):
 
             if len(value) >= struct.calcsize(format_str):
                 decoded_value = struct.unpack(format_str, value)[0]
-                text = str(decoded_value) + '\n' + self.textfield.toPlainText()
-                self.textfield.setPlainText(text)
-                self.dataframe[0].append(decoded_value)
+                if self.isPlotting and self.resamplecounter >= self.resampleratio:
+                    self.dataframe[0].append(decoded_value)
+                    self.resamplecounter = 0
             else:
                 QMessageBox.warning(self, 'Error', 'Received data does not match expected format.')
             if(self.isFirstTransactions):
@@ -196,7 +227,6 @@ class DisplayWidget(QWidget):
 
         elif self.decodeMethodDropdown.currentText() == "String Literal":
             decoded_value = value.decode("UTF-8")
-            self.textfield.appendPlainText(decoded_value)
 
         else:
             try:
@@ -216,13 +246,15 @@ class DisplayWidget(QWidget):
                 self.isFirstTransactions = False
                 self.plotButton.setEnabled(True)
                 self.saveButton.setEnabled(True)
+            if self.isPlotting and self.resamplecounter >= self.resampleratio:
+                for i in range(len(decoded_list)):
+                    try:
+                        item = float(decoded_list[i].replace('\x00',''))
+                    except:
+                        QMessageBox.warning(self,"Warning","Unable to decode")
+                    self.dataframe[i].append(item)
+                self.resamplecounter=0
 
-            for i in range(len(decoded_list)):
-                try:
-                    item = float(decoded_list[i].replace('\x00',''))
-                except:
-                    QMessageBox.warning(self,"Warning","Unable to decode")
-                self.dataframe[i].append(item)
         if self.isSaving and decoded_value is not None:
             self.incoming.emit(str(decoded_value))
 
@@ -255,6 +287,7 @@ class DisplayWidget(QWidget):
         """
         Starts plotting the BLE characteristic data in real-time.
         """
+        self.resampleratio = self.resampleratiodict[self.plotResampleDropdown.currentText()]
         if self.isFirstPlot:
             if self.decodeMethodDropdown.currentText() != "Comma Delimited String Literal":
                 self._fig, self._ax = plt.subplots()
@@ -290,6 +323,7 @@ class DisplayWidget(QWidget):
                 self._canvas = FigureCanvas(self._fig)
 
         self.plotButton.setEnabled(False)
+        self.plotResampleDropdown.setEnabled(False)
         self._layout.addWidget(self._canvas)
 
         self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=1, cache_frame_data=False)
@@ -348,11 +382,9 @@ class DisplayWidget(QWidget):
         self.thread.finished.connect(self.saver.deleteLater)
 
         self.thread.start()
-        self.isSaving = True
         
         self.saveButton.setEnabled(False)
         self.saveButton.setText("Saving...")
-        self.thread.start()
         self.isSaving = True
 
     @qasync.asyncClose
