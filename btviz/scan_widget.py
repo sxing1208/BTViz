@@ -87,7 +87,7 @@ class ScanWidget(QWidget):
         self.connectButton.setEnabled(False)
 
     def scanServices(self):
-        if self.devicesList.currentItem().text():
+        if self.devicesList.currentItem() and self.devicesList.currentItem().text():
             device = self.devicesDict[self.devicesList.currentItem().text()]
             self.scanServicesWindow = ConnectWidget(device)
             self.scanServicesWindow.show()
