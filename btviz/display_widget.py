@@ -12,11 +12,12 @@ from .config_loader import load_config
 import datetime
 import datetime
 import os
-from PyQt5.QtCore import QThread
+from PyQt5.QtCore import QThread, pyqtSignal
 from .save_thread import SaveThread
 
 
 class DisplayWidget(QWidget):
+    incoming = pyqtSignal(str)
     """
     A widget for displaying BLE characteristic data and plotting it in real-time.
     """
@@ -65,6 +66,8 @@ class DisplayWidget(QWidget):
         self.readButton = None
         self.intervalDropdown = None
         self.settingsButton = None
+
+        self.isSaving = False
         
         self.window = None
 
@@ -220,6 +223,8 @@ class DisplayWidget(QWidget):
                 except:
                     QMessageBox.warning(self,"Warning","Unable to decode")
                 self.dataframe[i].append(item)
+        if self.isSaving and decoded_value is not None:
+            self.incoming.emit(str(decoded_value))
 
                     
 
@@ -325,33 +330,30 @@ class DisplayWidget(QWidget):
         self.decodeRoutine(self.m_char, value)
 
     def startSaveData(self):
-        # 1. Get Filename (UI operation - Main Thread)
         text, ok = QInputDialog.getText(self, 'Save Data', 'Filename')
         if not ok or not text:
             return
-
-        # 2. Get Content (UI access - Main Thread)
+        
         content = self.textfield.toPlainText()
 
-        # 3. Setup Thread
         self.thread = QThread()
-        self.saver = SaveThread(text, content)
+        self.saver = SaveThread(text)
         self.saver.moveToThread(self.thread)
 
-        # 4. Connect Signals
-        self.thread.started.connect(self.saver.saveData)
+        self.thread.started.connect(self.saver.open)
+        self.incoming.connect(self.saver.enqueue)
         self.saver.finished.connect(self.thread.quit)
-        self.saver.finished.connect(self.saver.deleteLater)
+
         self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.finished.connect(lambda: self.saveButton.setEnabled(True))
-        self.thread.finished.connect(lambda: self.saveButton.setText("Save Data"))
+        self.thread.finished.connect(self.saver.deleteLater)
+
+        self.thread.start()
+        self.isSaving = True
         
-        # 5. Start
         self.saveButton.setEnabled(False)
         self.saveButton.setText("Saving...")
         self.thread.start()
-
-    # Removed updateProgress as it requires a progress bar that doesn't exist yet
+        self.isSaving = True
 
     @qasync.asyncClose
     async def closeEvent(self, event):
@@ -363,3 +365,7 @@ class DisplayWidget(QWidget):
 
         if self.isRead:
             self._timer.stop()
+
+        if self.isSaving:
+            self.saver.close()   # or emit a stop signal
+
