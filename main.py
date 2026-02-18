@@ -1,7 +1,7 @@
 import sys
 import asyncio
 from PyQt5.QtWidgets import QApplication
-import qasync
+import qasync   
 from btviz.scan_widget import ScanWidget
 
 
