@@ -15,7 +15,6 @@ class ScanWidget(QWidget):
         """
         super().__init__()
 
-        self.m_scanner = bleak.BleakScanner()
         self.m_client = None
         self.isDeviceDiscovered = False
 

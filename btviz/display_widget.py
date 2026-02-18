@@ -91,6 +91,7 @@ class DisplayWidget(QWidget):
 
         self.textfield = QPlainTextEdit()
         self.textfield.setReadOnly(True)
+        self.textfield.setMaximumBlockCount(25)
 
         self.readButton = QPushButton("Enable Timed Read")
         self.readButton.clicked.connect(self.enableTimedRead)
@@ -187,9 +188,7 @@ class DisplayWidget(QWidget):
 
         elif self.decodeMethodDropdown.currentText() == "String Literal":
             decoded_value = value.decode("UTF-8")
-            self.plotButton.setEnabled(False)
-            text = str(decoded_value) + '\n' + self.textfield.toPlainText()
-            self.textfield.setPlainText(text)
+            self.textfield.appendPlainText(decoded_value)
 
         else:
             try:
@@ -199,8 +198,7 @@ class DisplayWidget(QWidget):
                 QMessageBox.warning(self,"Warning","Unable to decode")
                 self.close()
             
-            text = str(decoded_value) + '\n' + self.textfield.toPlainText()
-            self.textfield.setPlainText(text)
+            self.textfield.appendPlainText(decoded_value)
             if(self.isFirstTransactions):
                 self.dataframe = []
                 self._lines = []
