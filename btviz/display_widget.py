@@ -33,7 +33,8 @@ class DisplayWidget(QWidget):
         super().__init__()
 
         self.config = None
-        self.thread = None
+        self._thread = None
+        self._decoderthread = None
 
         self.m_client = client
         self.m_char = char
@@ -47,7 +48,7 @@ class DisplayWidget(QWidget):
 
         self.figList = []
         self.axList = []
-        self.lineList = []
+        self._lines = None
 
         self._line = None
         self._title = None
@@ -175,8 +176,8 @@ class DisplayWidget(QWidget):
         self._title = str_list[0]
         self._xlabel = str_list[1]
         self._ylabel = str_list[2]
-        for valueQueue in self.dataframe:
-            valueQueue = deque(maxlen=int(str_list[3]))
+        for i in range(len(self.dataframe)):
+            self.dataframe[i] = deque(maxlen=int(str_list[3]))
         for ax in self._axs:
             ax.set_title(self._title)
             ax.set_xlabel(self._xlabel)
@@ -281,7 +282,7 @@ class DisplayWidget(QWidget):
                 self._lines[i].set_color('r')
 
             # Return all line objects for animation update
-            return [line for line in self.lineList]
+            return self._lines
 
     def _plot(self):
         """
@@ -370,18 +371,18 @@ class DisplayWidget(QWidget):
         
         content = self.textfield.toPlainText()
 
-        self.thread = QThread()
+        self._thread = QThread()
         self.saver = SaveThread(text)
-        self.saver.moveToThread(self.thread)
+        self.saver.moveToThread(self._thread)
 
-        self.thread.started.connect(self.saver.open)
+        self._thread.started.connect(self.saver.open)
         self.incoming.connect(self.saver.enqueue)
-        self.saver.finished.connect(self.thread.quit)
+        self.saver.finished.connect(self._thread.quit)
 
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.thread.finished.connect(self.saver.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.finished.connect(self.saver.deleteLater)
 
-        self.thread.start()
+        self._thread.start()
         
         self.saveButton.setEnabled(False)
         self.saveButton.setText("Saving...")
