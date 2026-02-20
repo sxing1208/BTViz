@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QListWidget, QLabel, QMessageBox
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QLabel, QMessageBox, QTextEdit
 import qasync
 import bleak
 from .display_widget import DisplayWidget
@@ -33,35 +33,130 @@ class ConnectWidget(QWidget):
 
     def initUI(self):
         self.setWindowTitle("Device Connect")
-        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.5, scale_height=0.7)
+        windowWidth, windowHeight, xPos, yPos = calculate_window(scale_width=0.7, scale_height=0.7)
         self.setGeometry(xPos, yPos, windowWidth, windowHeight)
+        self.setStyleSheet("background-color: #4B9CD3; color: white;")
+
+        main_layout = QHBoxLayout(self)
+
+        # Left Side (Status and Disconnect)
+        left_layout = QVBoxLayout()
+        
+        self.connectButton = QPushButton('Disconnect', self)
+        self.connectButton.clicked.connect(self.disconnect)
+        self.connectButton.setStyleSheet("""
+        QPushButton {
+            background-color: #4B9CD3; 
+            color: white; 
+            border: .5px solid white; 
+            border-radius: 5px;
+            font-size: 14px; 
+            font-weight: bold;
+            padding: 5px;
+        }
+        QPushButton:hover {
+            background-color: #C0392B;
+        }
+        """)
+        left_layout.addWidget(self.connectButton)
+
+        self.statusBox = QTextEdit(self)
+        self.statusBox.setReadOnly(True)
+        self.statusBox.setStyleSheet("background-color: #E7EBEB; color: black; border-radius: 5px; padding: 5px;")
+        self.statusBox.append(f"Connecting to {self.device.name}...")
+        left_layout.addWidget(self.statusBox)
+
+        main_layout.addLayout(left_layout, 1)
+
+        # Right Side (Lists and Actions)
+        right_layout = QVBoxLayout()
+
+        service_list_label = QLabel('Service List')
+        service_list_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        right_layout.addWidget(service_list_label)
+
+        self.servicesList = QListWidget(self)
+        self.servicesList.setStyleSheet("""
+            QListWidget {
+                background-color: #E7EBEB; 
+                color: black; 
+                padding: 2px;
+                border-radius: 5px;
+            }
+            QListWidget::item {
+                background-color: white;
+                margin: 3px;
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid #4B9CD3;
+            }
+            QListWidget::item:selected {
+                background-color: #7BAFD4;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #4B9CD3;
+            }
+        """)
+        right_layout.addWidget(self.servicesList)
 
         self.serviceButton = QPushButton('Read Service', self)
         self.serviceButton.clicked.connect(self.scanChar)
+        self.serviceButton.setStyleSheet("""
+        QPushButton {
+            background-color: #4B9CD3; 
+            color: white; 
+            border: .5px solid white; 
+            border-radius: 5px;
+            font-size: 16px; 
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #13294B;
+        }
+        """)
         self.serviceButton.setEnabled(False)
+        right_layout.addWidget(self.serviceButton)
 
-        self.connectButton = QPushButton('Disconnect', self)
-        self.connectButton.clicked.connect(self.disconnect)
-        self.connectButton.setEnabled(True)
-
-        self.servicesList = QListWidget(self)
+        char_list_label = QLabel('Characteristic List')
+        char_list_label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        right_layout.addWidget(char_list_label)
 
         self.charList = QListWidget(self)
+        self.charList.setStyleSheet("""
+            QListWidget {
+                background-color: #E7EBEB; 
+                color: black; 
+                padding: 2px;
+                border-radius: 5px;
+                font-size: 14px; 
+                font-weight: bold;
+            }
+            QListWidget::item {
+                background-color: white;
+                margin: 3px;
+                padding: 10px;
+                border-radius: 8px;
+                border: 1px solid #4B9CD3;
+            }
+            QListWidget::item:selected {
+                background-color: #7BAFD4;
+                color: white;
+            }
+            QListWidget::item:hover {
+                background-color: #4B9CD3;
+            }
+        """)
+        right_layout.addWidget(self.charList)
 
-        layout = QVBoxLayout(self)
-
-        layout.addWidget(self.connectButton)
-        layout.addWidget(QLabel('Service List'))
-        layout.addWidget(self.servicesList)
-        layout.addWidget(self.serviceButton)
-        layout.addWidget(QLabel('Characteristic List'))
-        layout.addWidget(self.charList)
+        main_layout.addLayout(right_layout, 2)
 
     @qasync.asyncSlot()
     async def disconnect(self):
         """
         Disconnects from the currently connected BLE device.
         """
+        self.statusBox.append("Disconnecting...")
         self.connectButton.setEnabled(False)
         if self.m_client:
             await self.m_client.disconnect()
@@ -77,21 +172,28 @@ class ConnectWidget(QWidget):
             self.m_client = bleak.BleakClient(self.device)
             try:
                 await self.m_client.connect()
+                self.statusBox.append(f"Successfully connected to {self.device.name}!")
             except:
+                self.statusBox.append(f"Failed to connect to {self.device.name}")
                 QMessageBox.warning(self, 'warning', 'Unable to connect')
                 self.close()
+            
+            self.statusBox.append("Discovering services...")
             services = self.m_client.services
             for service in services:
                 self.servicesList.addItem(str(service))
                 self.servicesDict[str(service)] = service
-                self.connectButton.setText('Disconnect')
-                self.connectButton.disconnect()
-                self.connectButton.clicked.connect(self.disconnect)
-                self.connectButton.setEnabled(True)
 
-                self.serviceButton.setEnabled(True)
+            self.statusBox.append(f"Found {len(services)} services. Select one to read.")
 
-                self.charList.doubleClicked.connect(self.charMonitor)
+            self.connectButton.setText('Disconnect')
+            self.connectButton.disconnect()
+            self.connectButton.clicked.connect(self.disconnect)
+            self.connectButton.setEnabled(True)
+
+            self.serviceButton.setEnabled(True)
+
+            self.charList.doubleClicked.connect(self.charMonitor)
         else:
             QMessageBox.warning(self, 'warning', 'Unable to connect')
             self.close()
@@ -103,20 +205,27 @@ class ConnectWidget(QWidget):
         """
         self.serviceButton.setEnabled(False)
         if self.servicesList.currentItem():
-            service = self.servicesDict[self.servicesList.currentItem().text()]
+            service_name = self.servicesList.currentItem().text()
+            self.statusBox.append(f"Reading characteristics for {service_name}...")
+            service = self.servicesDict[service_name]
             chars = service.characteristics
+            self.charList.clear()
             for char in chars:
                 self.charList.addItem(str(char))
                 self.charDict[str(char)] = char
+            self.statusBox.append(f"Found {len(chars)} characteristics.")
         else:
             QMessageBox.warning(self,'warning','Please select a valid option')
+        self.serviceButton.setEnabled(True)
 
     @qasync.asyncSlot()
     async def charMonitor(self):
         """
         Opens a display widget for the selected characteristic to monitor its data.
         """
-        m_char = self.charDict[self.charList.currentItem().text()]
+        char_name = self.charList.currentItem().text()
+        self.statusBox.append(f"Monitoring characteristic: {char_name}")
+        m_char = self.charDict[char_name]
         self.charMonitorWindow = DisplayWidget(self.m_client,m_char)
         self.charMonitorWindow.show()
 
