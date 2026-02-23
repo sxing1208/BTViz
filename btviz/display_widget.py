@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox, QInputDialog, QLabel
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox, QInputDialog, QLabel
 from PyQt5.QtCore import QTimer
 import qasync
 import struct
@@ -90,12 +90,53 @@ class DisplayWidget(QWidget):
         """
         Initializes the user interface for the display widget.
         """
+        self.setWindowTitle('Characteristic Reader')
+        window_width, window_height, x_pos, y_pos = calculate_window(scale_width=0.7, scale_height=0.7)
+        self.setGeometry(x_pos, y_pos, window_width, window_height)
+        self.setStyleSheet("background-color: #4B9CD3; color: white;")
+
+        self.main_layout = QHBoxLayout(self)
+        left_layout = QVBoxLayout()
+        self.right_layout = QVBoxLayout()
+
+        button_style = """
+        QPushButton {
+            background-color: #4B9CD3; 
+            color: white; 
+            border: .5px solid white; 
+            border-radius: 5px;
+            font-size: 14px; 
+            font-weight: bold;
+            padding: 5px;
+        }
+        QPushButton:hover {
+            background-color: #13294B;
+        }
+        QPushButton:disabled {
+            background-color: #A9A9A9;
+            color: #D3D3D3;
+        }
+        """
+
+        combo_style = """
+        QComboBox {
+            background-color: #E7EBEB;
+            color: black;
+            border-radius: 5px;
+            padding: 2px;
+        }
+        """
+
+        label_style = "font-size: 14px; font-weight: bold; color: white;"
+
         self.notifButton = QPushButton('Enable Notifications')
         self.notifButton.clicked.connect(self.enableNotif)
+        self.notifButton.setStyleSheet(button_style)
 
         self.plotButton = QPushButton('Plot')
         self.plotButton.clicked.connect(self._plot)
         self.plotButton.setEnabled(False)
+        self.plotButton.setStyleSheet(button_style)
 
         # Dropdown for selecting data decoding method
         self.decodeMethodDropdown = QComboBox()
@@ -104,18 +145,16 @@ class DisplayWidget(QWidget):
             self.decodeMethodDropdown.addItem(option['name'])
         self.decodeMethodDropdown.addItem("String Literal")
         self.decodeMethodDropdown.addItem("Comma Delimited String Literal")
-
-        self.setWindowTitle('Characteristic Reader')
-
-        window_width, window_height, x_pos, y_pos = calculate_window(scale_width=0.5, scale_height=0.7)
-        self.setGeometry(x_pos, y_pos, window_width, window_height)
+        self.decodeMethodDropdown.setStyleSheet(combo_style)
 
         self.textfield = QPlainTextEdit()
         self.textfield.setReadOnly(True)
         self.textfield.setMaximumBlockCount(25)
+        self.textfield.setStyleSheet("background-color: #E7EBEB; color: black; border-radius: 5px; padding: 5px;")
 
         self.readButton = QPushButton("Enable Timed Read")
         self.readButton.clicked.connect(self.enableTimedRead)
+        self.readButton.setStyleSheet(button_style)
 
         self.intervalDropdown = QComboBox()
         self.intervalDropdown.addItem(".")
@@ -123,6 +162,7 @@ class DisplayWidget(QWidget):
         self.intervalDropdown.addItem("200")
         self.intervalDropdown.addItem("500")
         self.intervalDropdown.addItem("1000")
+        self.intervalDropdown.setStyleSheet(combo_style)
 
         self.plotResampleDropdown = QComboBox()
         self.plotResampleDropdown.addItem('1:1')
@@ -130,34 +170,41 @@ class DisplayWidget(QWidget):
         self.plotResampleDropdown.addItem('10:1')
         self.plotResampleDropdown.addItem('20:1')
         self.plotResampleDropdown.addItem('50:1')
+        self.plotResampleDropdown.setStyleSheet(combo_style)
 
         self.saveButton = QPushButton("Save Data")
         self.saveButton.clicked.connect(self.startSaveData)
         self.saveButton.setEnabled(False)
+        self.saveButton.setStyleSheet(button_style)
 
         self.decodeLabel = QLabel("Decode method")
+        self.decodeLabel.setStyleSheet(label_style)
         self.readIntervalLabel = QLabel("Read interval (ms)")
+        self.readIntervalLabel.setStyleSheet(label_style)
         self.plotResampleLabel = QLabel("Plot resample ratio")
-
-        self._layout = QVBoxLayout(self)
-        self._layout.addWidget(self.notifButton)
-        self._layout.addWidget(self.readButton)
-        self._layout.addWidget(self.decodeLabel)
-        self._layout.addWidget(self.decodeMethodDropdown)
-
-        self._layout.addWidget(self.readIntervalLabel)
-        self._layout.addWidget(self.intervalDropdown)
-
-        self._layout.addWidget(self.plotResampleLabel)
-        self._layout.addWidget(self.plotResampleDropdown)
-        self._layout.addWidget(self.textfield)
-        self._layout.addWidget(self.plotButton)
+        self.plotResampleLabel.setStyleSheet(label_style)
 
         self.settingsButton = QPushButton("Plot Settings")
         self.settingsButton.clicked.connect(self.onSettings)
+        self.settingsButton.setStyleSheet(button_style)
 
-        self._layout.addWidget(self.settingsButton)
-        self._layout.addWidget(self.saveButton)
+        left_layout.addWidget(self.notifButton)
+        left_layout.addWidget(self.readButton)
+        left_layout.addWidget(self.decodeLabel)
+        left_layout.addWidget(self.decodeMethodDropdown)
+        left_layout.addWidget(self.readIntervalLabel)
+        left_layout.addWidget(self.intervalDropdown)
+        left_layout.addWidget(self.plotResampleLabel)
+        left_layout.addWidget(self.plotResampleDropdown)
+        left_layout.addWidget(self.settingsButton)
+        left_layout.addWidget(self.saveButton)
+        left_layout.addStretch()
+
+        self.right_layout.addWidget(self.textfield)
+        self.right_layout.addWidget(self.plotButton)
+
+        self.main_layout.addLayout(left_layout, 1)
+        self.main_layout.addLayout(self.right_layout, 2)
 
     @qasync.asyncSlot()
     async def onSettings(self):
@@ -178,10 +225,11 @@ class DisplayWidget(QWidget):
         self._ylabel = str_list[2]
         for i in range(len(self.dataframe)):
             self.dataframe[i] = deque(maxlen=int(str_list[3]))
-        for ax in self._axs:
-            ax.set_title(self._title)
-            ax.set_xlabel(self._xlabel)
-            ax.set_ylabel(self._ylabel)
+        if hasattr(self, "_axs") and self._axs:
+            for ax in self._axs:
+                ax.set_title(self._title)
+                ax.set_xlabel(self._xlabel)
+                ax.set_ylabel(self._ylabel)
 
     @qasync.asyncSlot()
     async def enableNotif(self):
@@ -308,6 +356,10 @@ class DisplayWidget(QWidget):
             else:
 
                 self._fig, self._axs = plt.subplots(len(self.dataframe),1)
+                if len(self.dataframe) == 1:
+                    self._axs = [self._axs]
+                
+                self._lines = []
                 for i in range(len(self._axs)):
                     _ax = self._axs[i]
                     line, = _ax.plot(self.dataframe[i])
@@ -325,7 +377,7 @@ class DisplayWidget(QWidget):
 
         self.plotButton.setEnabled(False)
         self.plotResampleDropdown.setEnabled(False)
-        self._layout.addWidget(self._canvas)
+        self.right_layout.addWidget(self._canvas)
 
         self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=1, cache_frame_data=False)
         

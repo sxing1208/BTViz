@@ -167,56 +167,71 @@ class ConnectWidget(QWidget):
         """
         Scans for services of the connected BLE device and updates the UI.
         """
-        self.connectButton.setEnabled(False)
-        if self.device:
-            self.m_client = bleak.BleakClient(self.device)
-            try:
-                await self.m_client.connect()
-                self.statusBox.append(f"Successfully connected to {self.device.name}!")
-            except:
-                self.statusBox.append(f"Failed to connect to {self.device.name}")
+        try:
+            self.connectButton.setEnabled(False)
+            if self.device:
+                self.m_client = bleak.BleakClient(self.device)
+                try:
+                    await self.m_client.connect()
+                    self.statusBox.append(f"Successfully connected to {self.device.name}!")
+                except Exception as e:
+                    import traceback; traceback.print_exc()
+                    self.statusBox.append(f"Failed to connect: {str(e)}")
+                    QMessageBox.warning(self, 'warning', 'Unable to connect')
+                    self.close()
+                    return
+                
+                self.statusBox.append("Discovering services...")
+                i=0
+                
+                services = self.m_client.services
+                for service in services:
+                    i+=1
+                    self.servicesList.addItem(str(service))
+                    self.servicesDict[str(service)] = service
+
+                self.statusBox.append(f"Found {i} services. Select one to read.")
+
+                self.connectButton.setText('Disconnect')
+                self.connectButton.disconnect()
+                self.connectButton.clicked.connect(self.disconnect)
+                self.connectButton.setEnabled(True)
+
+                self.serviceButton.setEnabled(True)
+
+                self.charList.doubleClicked.connect(self.charMonitor)
+            else:
                 QMessageBox.warning(self, 'warning', 'Unable to connect')
                 self.close()
-            
-            self.statusBox.append("Discovering services...")
-            services = self.m_client.services
-            for service in services:
-                self.servicesList.addItem(str(service))
-                self.servicesDict[str(service)] = service
-
-            self.statusBox.append(f"Found {len(services)} services. Select one to read.")
-
-            self.connectButton.setText('Disconnect')
-            self.connectButton.disconnect()
-            self.connectButton.clicked.connect(self.disconnect)
-            self.connectButton.setEnabled(True)
-
-            self.serviceButton.setEnabled(True)
-
-            self.charList.doubleClicked.connect(self.charMonitor)
-        else:
-            QMessageBox.warning(self, 'warning', 'Unable to connect')
-            self.close()
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            self.statusBox.append(f"Error in scanServices: {str(e)}")
 
     @qasync.asyncSlot()
     async def scanChar(self):
         """
         Scans for characteristics of the selected service and updates the UI.
         """
-        self.serviceButton.setEnabled(False)
-        if self.servicesList.currentItem():
-            service_name = self.servicesList.currentItem().text()
-            self.statusBox.append(f"Reading characteristics for {service_name}...")
-            service = self.servicesDict[service_name]
-            chars = service.characteristics
-            self.charList.clear()
-            for char in chars:
-                self.charList.addItem(str(char))
-                self.charDict[str(char)] = char
-            self.statusBox.append(f"Found {len(chars)} characteristics.")
-        else:
-            QMessageBox.warning(self,'warning','Please select a valid option')
-        self.serviceButton.setEnabled(True)
+        try:
+            self.serviceButton.setEnabled(False)
+            if self.servicesList.currentItem():
+                service_name = self.servicesList.currentItem().text()
+                self.statusBox.append(f"Reading characteristics for {service_name}...")
+                service = self.servicesDict[service_name]
+                chars = service.characteristics
+                self.charList.clear()
+                for char in chars:
+                    self.charList.addItem(str(char))
+                    self.charDict[str(char)] = char
+                self.statusBox.append(f"Found {len(chars)} characteristics.")
+            else:
+                QMessageBox.warning(self,'warning','Please select a valid option')
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.statusBox.append(f"Error in scanChar: {str(e)}")
+        finally:
+            self.serviceButton.setEnabled(True)
 
     @qasync.asyncSlot()
     async def charMonitor(self):
