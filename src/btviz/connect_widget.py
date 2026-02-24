@@ -4,6 +4,10 @@ import bleak
 from .display_widget import DisplayWidget
 from .utils import calculate_window
 
+import logging
+import traceback
+
+logger = logging.getLogger(__name__)
 
 class ConnectWidget(QWidget):
     def __init__(self, device):
@@ -30,6 +34,14 @@ class ConnectWidget(QWidget):
         self.charMonitorWindow = None
 
         self.initUI()
+
+    def _ui_log(self, msg: str, level: int = logging.INFO):
+        try:
+            if hasattr(self, "statusBox") and self.statusBox is not None:
+                self.statusBox.append(msg)
+        except Exception:
+            pass
+        logger.log(level, msg)
 
     def initUI(self):
         self.setWindowTitle("Device Connect")
@@ -204,8 +216,9 @@ class ConnectWidget(QWidget):
                 QMessageBox.warning(self, 'warning', 'Unable to connect')
                 self.close()
         except Exception as e:
-            import traceback; traceback.print_exc()
-            self.statusBox.append(f"Error in scanServices: {str(e)}")
+            logger.exception("Error in scanServices")
+            self._ui_log(f"Error in scanServices: {str(e)}", logging.ERROR)
+            traceback.print_exc()
 
     @qasync.asyncSlot()
     async def scanChar(self):
@@ -227,9 +240,9 @@ class ConnectWidget(QWidget):
             else:
                 QMessageBox.warning(self,'warning','Please select a valid option')
         except Exception as e:
-            import traceback
+            logger.exception("Error in scanChar")
+            self._ui_log(f"Error in scanChar: {str(e)}", logging.ERROR)
             traceback.print_exc()
-            self.statusBox.append(f"Error in scanChar: {str(e)}")
         finally:
             self.serviceButton.setEnabled(True)
 
@@ -238,11 +251,15 @@ class ConnectWidget(QWidget):
         """
         Opens a display widget for the selected characteristic to monitor its data.
         """
-        char_name = self.charList.currentItem().text()
-        self.statusBox.append(f"Monitoring characteristic: {char_name}")
-        m_char = self.charDict[char_name]
-        self.charMonitorWindow = DisplayWidget(self.m_client,m_char)
-        self.charMonitorWindow.show()
+        try:
+            char_name = self.charList.currentItem().text()
+            self.statusBox.append(f"Monitoring characteristic: {char_name}")
+            m_char = self.charDict[char_name]
+            self.charMonitorWindow = DisplayWidget(self.m_client,m_char)
+            self.charMonitorWindow.show()
+        except Exception as e:
+            logger.exception("Error in charMonitor")
+            self._ui_log(f"Error in charMonitor: {str(e)}", logging.ERROR)
 
     @qasync.asyncClose
     async def closeEvent(self, event):
@@ -250,5 +267,5 @@ class ConnectWidget(QWidget):
             try:
                 await self.m_client.disconnect()
             except:
-                pass
+                logger.exception("Failed to disconnect during closeEvent")
             self.m_client = None

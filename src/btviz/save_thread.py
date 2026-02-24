@@ -16,7 +16,7 @@ class SaveThread(QObject):
     def open(self):
         try:
             date_str = str(datetime.datetime.now())[:10]
-            folder = os.path.join(".", "output", date_str)
+            folder = os.path.join(".", "results", date_str)
             os.makedirs(folder, exist_ok=True)
             path = os.path.join(folder, self.filename)
 
