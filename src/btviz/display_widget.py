@@ -140,7 +140,7 @@ class DisplayWidget(QWidget):
 
         # Dropdown for selecting data decoding method
         self.decodeMethodDropdown = QComboBox()
-        self.config = load_config('config.json')
+        self.config = load_config()
         for option in self.config['decodeOptions']:
             self.decodeMethodDropdown.addItem(option['name'])
         self.decodeMethodDropdown.addItem("String Literal")
