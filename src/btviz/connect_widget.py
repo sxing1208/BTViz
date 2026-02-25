@@ -163,6 +163,25 @@ class ConnectWidget(QWidget):
 
         main_layout.addLayout(right_layout, 2)
 
+        self.interactButton = QPushButton("Interact")
+        self.interactButton.clicked.connect(self.charMonitor)
+        self.interactButton.setStyleSheet("""
+        QPushButton {
+            background-color: #4B9CD3; 
+            color: white; 
+            border: .5px solid white; 
+            border-radius: 5px;
+            font-size: 16px; 
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #13294B;
+        }
+        """)
+        self.interactButton.setEnabled(False)
+        right_layout.addWidget(self.interactButton)
+
+
     @qasync.asyncSlot()
     async def disconnect(self):
         """
@@ -239,6 +258,7 @@ class ConnectWidget(QWidget):
                 self.statusBox.append(f"Found {len(chars)} characteristics.")
             else:
                 QMessageBox.warning(self,'warning','Please select a valid option')
+            self.interactButton.setEnabled(True)
         except Exception as e:
             logger.exception("Error in scanChar")
             self._ui_log(f"Error in scanChar: {str(e)}", logging.ERROR)
@@ -251,15 +271,18 @@ class ConnectWidget(QWidget):
         """
         Opens a display widget for the selected characteristic to monitor its data.
         """
-        try:
-            char_name = self.charList.currentItem().text()
-            self.statusBox.append(f"Monitoring characteristic: {char_name}")
-            m_char = self.charDict[char_name]
-            self.charMonitorWindow = DisplayWidget(self.m_client,m_char)
-            self.charMonitorWindow.show()
-        except Exception as e:
-            logger.exception("Error in charMonitor")
-            self._ui_log(f"Error in charMonitor: {str(e)}", logging.ERROR)
+        # Safety Check: Did the user actually select an item?
+        if not self.charList.currentItem():
+            QMessageBox.warning(self, 'Warning', 'Please select a characteristic first.')
+            return
+
+        char_name = self.charList.currentItem().text()
+        self.statusBox.append(f"Monitoring characteristic: {char_name}")
+        m_char = self.charDict[char_name]
+        
+        # Open the DisplayWidget you just upgraded
+        self.charMonitorWindow = DisplayWidget(self.m_client, m_char)
+        self.charMonitorWindow.show()
 
     @qasync.asyncClose
     async def closeEvent(self, event):

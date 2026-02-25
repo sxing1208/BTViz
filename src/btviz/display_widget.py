@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox, QInputDialog, QLabel
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QPlainTextEdit, QMessageBox, QComboBox, QInputDialog, QLabel, QLineEdit
 from PyQt5.QtCore import QTimer
 import qasync
 import struct
@@ -188,6 +188,16 @@ class DisplayWidget(QWidget):
         self.settingsButton.clicked.connect(self.onSettings)
         self.settingsButton.setStyleSheet(button_style)
 
+        self.writeInput = QLineEdit()
+        self.writeInput.setPlaceholderText("Enter command to send")
+        self.writeInput.setStyleSheet("background-color: #E7EBEB; color: black; border-radius: 5px; padding: 5px;")
+
+        self.writeButton = QPushButton("Write")
+        self.writeButton.clicked.connect(self.writeData)
+        self.writeButton.setStyleSheet(button_style)
+
+        left_layout.addWidget(self.writeInput)
+        left_layout.addWidget(self.writeButton)
         left_layout.addWidget(self.notifButton)
         left_layout.addWidget(self.readButton)
         left_layout.addWidget(self.decodeLabel)
@@ -205,6 +215,17 @@ class DisplayWidget(QWidget):
 
         self.main_layout.addLayout(left_layout, 1)
         self.main_layout.addLayout(self.right_layout, 2)
+        
+        properties = self.m_char.properties
+        if 'notify' not in properties:
+            self.notifButton.setEnabled(False)
+            self.notifButton.setText("Notify Not Supported")
+        if 'read' not in properties:
+            self.readButton.setEnabled(False)
+            self.readButton.setText("Read Not Supported")
+        if 'write' not in properties:
+            self.writeButton.setEnabled(False)
+            self.writeButton.setText("Write Not Supported")
 
     @qasync.asyncSlot()
     async def onSettings(self):
@@ -247,6 +268,22 @@ class DisplayWidget(QWidget):
             self.isNotif = True
         except Exception as e:
             QMessageBox.information(self, 'Info', f'Unable to start notification: {e}')
+
+    @qasync.asyncSlot()
+    async def writeData(self):
+        """
+        Grabs text from the input, converts it to bytes, and sends it to device.
+        """
+        text_to_send = self.writeInput.text()
+        if not text_to_send:
+            return
+        try:
+            data_bytes = text_to_send.encode('utf-8')
+            await self.m_client.write_gatt_char(self.m_char, data_bytes)
+            self.textfield.appendPlainText(f"Wrote: {text_to_send}")
+            self.writeInput.clear()
+        except Exception as e:
+            QMessageBox.information(self, 'Write Error', f'Unable to write data: {e}')
 
     def decodeRoutine(self, char, value):
         """
