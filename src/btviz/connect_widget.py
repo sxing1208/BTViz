@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QListWidget, QLabel, QMessageBox, QTextEdit
+from PyQt5.QtCore import QTimer
 import qasync
+import asyncio
 import bleak
 from .display_widget import DisplayWidget
 from .utils import calculate_window
@@ -191,7 +193,8 @@ class ConnectWidget(QWidget):
         self.connectButton.setEnabled(False)
         if self.m_client:
             await self.m_client.disconnect()
-        self.close()
+        self.statusBox.append("Returning to main page in 4 seconds...")
+        QTimer.singleShot(4000, self.close)
 
     @qasync.asyncSlot()
     async def scanServices(self):

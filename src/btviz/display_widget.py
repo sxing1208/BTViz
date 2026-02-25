@@ -188,6 +188,17 @@ class DisplayWidget(QWidget):
         self.settingsButton.clicked.connect(self.onSettings)
         self.settingsButton.setStyleSheet(button_style)
 
+        self.writeEncodeLabel = QLabel("Write encoding")
+        self.writeEncodeLabel.setStyleSheet(label_style)
+
+        self.writeEncodeDropdown = QComboBox()
+        self.writeEncodeDropdown.addItem("UTF-8")
+        self.writeEncodeDropdown.addItem("Binary (Hex)")
+        self.writeEncodeDropdown.setStyleSheet(combo_style)
+
+        left_layout.addWidget(self.writeEncodeLabel)
+        left_layout.addWidget(self.writeEncodeDropdown)
+
         self.writeInput = QLineEdit()
         self.writeInput.setPlaceholderText("Enter command to send")
         self.writeInput.setStyleSheet("background-color: #E7EBEB; color: black; border-radius: 5px; padding: 5px;")
@@ -278,10 +289,16 @@ class DisplayWidget(QWidget):
         if not text_to_send:
             return
         try:
-            data_bytes = text_to_send.encode('utf-8')
+            if self.writeEncodeDropdown.currentText() == "UTF-8":
+                data_bytes = text_to_send.encode('utf-8')
+            elif self.writeEncodeDropdown.currentText() == "Binary (Hex)":
+                clean_hex = text_to_send.replace(" ", "")
+                data_bytes = bytes.fromhex(clean_hex)
             await self.m_client.write_gatt_char(self.m_char, data_bytes)
-            self.textfield.appendPlainText(f"Wrote: {text_to_send}")
+            self.textfield.appendPlainText(f"Wrote ({self.writeEncodeDropdown.currentText()}): {text_to_send}")
             self.writeInput.clear()
+        except ValueError:
+            QMessageBox.information(self, 'Format Error', f'Invalid hex format. Only use 0-9 and A-F.')
         except Exception as e:
             QMessageBox.information(self, 'Write Error', f'Unable to write data: {e}')
 
