@@ -9,3 +9,11 @@ BTViz is a bluetooth visualization toolkit based on Bleak and PyQT5 that develop
   - Arduino Nano 33 BLE / BLE Sense
   - Arduino Nano RP2040 Connect
 - ESP DevKit
+
+
+## How to run
+
+```bash
+source venv/bin/activate
+PYTHONPATH=src python3 -m btviz
+```
