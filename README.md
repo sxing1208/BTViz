@@ -11,9 +11,13 @@ BTViz is a bluetooth visualization toolkit based on Bleak and PyQT5 that develop
 - ESP DevKit
 
 
-## How to run
+## Installation
+
+to install the latest update with source code, run this command in bash
 
 ```bash
-source venv/bin/activate
-PYTHONPATH=src python3 -m btviz
+git clone https://github.com/sxing1208/BTViz
+pip install -e .
 ```
+
+to install the stable release with windows binaries, download the latest release
