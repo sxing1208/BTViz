@@ -30,10 +30,10 @@ class SaveThread(QObject):
         except Exception as e:
             self.error.emit(str(e))
 
-    @pyqtSlot(str)
-    def enqueue(self, line: str):
+    @pyqtSlot(list)
+    def enqueue(self, lines: list):
         # cheap: just buffer
-        self._buf.append(line)
+        self._buf.extend(lines)
 
     @pyqtSlot()
     def flush(self):
