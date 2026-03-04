@@ -17,7 +17,7 @@ from .save_thread import SaveThread
 
 
 class DisplayWidget(QWidget):
-    incoming = pyqtSignal(str)
+    incoming = pyqtSignal(list)
     """
     A widget for displaying BLE characteristic data and plotting it in real-time.
     """
@@ -40,6 +40,8 @@ class DisplayWidget(QWidget):
         self.m_char = char
 
         self.dataframe = [deque(maxlen= 100)]
+        self.buffer = []
+        self.buffer_size = 20
 
         self.isNotif = False
         self.isRead = False
@@ -359,9 +361,10 @@ class DisplayWidget(QWidget):
                 self.resamplecounter=0
 
         if self.isSaving and decoded_value is not None:
-            self.incoming.emit(str(decoded_value))
-
-                    
+            self.buffer.append(str(decoded_value))
+            if len(self.buffer) >= self.buffer_size:
+                self.incoming.emit(self.buffer.copy())
+                self.buffer.clear()
 
     def plotUpdate(self, frame):
         """
@@ -385,6 +388,7 @@ class DisplayWidget(QWidget):
 
             # Return all line objects for animation update
             return self._lines
+        return []
 
     def _plot(self):
         """
@@ -433,7 +437,7 @@ class DisplayWidget(QWidget):
         self.plotResampleDropdown.setEnabled(False)
         self.right_layout.addWidget(self._canvas)
 
-        self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=1, cache_frame_data=False)
+        self._animation = FuncAnimation(self._fig, self.plotUpdate, interval=33, cache_frame_data=False, blit=True)
         
         self.isPlotting = True
         self._canvas.draw_idle()
@@ -506,5 +510,9 @@ class DisplayWidget(QWidget):
             self._timer.stop()
 
         if self.isSaving:
+            if self.buffer:
+                self.incoming.emit(self.buffer.copy())
+                self.buffer.clear()
             self.saver.close()   # or emit a stop signal
+
 
